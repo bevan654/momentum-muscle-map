@@ -128,40 +128,57 @@ Set-up, male front body:
 |---|---|
 | Build the Skia paths for one level | 0.2 to 0.4 ms |
 | Build the outline path | 0.06 ms |
-| Resolve values for a level | 0.05 ms |
+| Resolve values for a level | 0.04 ms |
 | Hit-test one tap | 0.002 ms |
 
-Cost of drawing one frame at Full detail into a 966 by 2100 pixel surface, with five regions glowing:
+Cost of drawing one frame at Full detail into a 966 by 2100 pixel surface. Each frame is one step of a blend between two workouts, so the number of glowing regions changes from frame to frame: between 0 and 16 of the 72, about 10 on average. The steady figures are taken after a warm-up over the whole blend, and are the median of ten runs; single runs varied by about 0.05 ms, with occasional outliers of up to 0.2 ms.
 
 | Approach | No glow | Glow as one blurred layer | Glow as a blurred mask per region |
 |---|---|---|---|
-| Draw directly | 0.28 ms | 0.43 ms | 1.15 ms |
-| Record a picture, then draw it | 0.28 ms | 0.47 ms | 0.88 ms |
-| Draw an already recorded picture | 0.22 ms | 0.31 ms | 0.23 ms |
+| Draw directly | 0.24 ms | 0.40 ms | 0.26 ms |
+| Record a picture, then draw it | 0.24 ms | 0.41 ms | 0.29 ms |
+| Draw an already recorded picture | 0.20 ms | 0.34 ms | 0.23 ms |
 
-With every region glowing, the layer costs 0.57 ms. Recording a picture on its own costs about 0.04 ms on the JS thread and 0.2 to 0.6 ms on the UI thread during a live animation.
+With all 70 muscle regions glowing steadily, the layer costs 0.52 ms and the masks cost 0.37 ms. So once warm, a mask per region is the cheaper glow by 0.1 to 0.15 ms a frame.
+
+The first frame is different, because each region's mask has to be blurred the first time it glows. Time for the first frame of a case, recording a picture and drawing it:
+
+| Glowing regions on the first frame | No glow | Glow as one blurred layer | Glow as a blurred mask per region |
+|---|---|---|---|
+| 16 | 4.2 ms | 4.8 ms | 13.4 ms |
+| 70 | | 4.3 ms | 28.9 ms |
+
+The 70-region row was measured drawing directly, not through a picture, and has no figure without glow. Recording a picture on its own costs about 0.04 ms on the JS thread and 0.2 to 0.6 ms on the UI thread during a live animation.
 
 Live animation of every region's colour for six seconds, full screen:
 
-| Approach | Frames slower than 1.5x the median | App memory |
-|---|---|---|
-| One Skia node per region | 0% | 59 MB, 61 MB with glow |
-| One picture re-recorded each frame | 0% | 57 MB, 58 MB with glow |
+| Approach | Frames slower than 1.5x the median | Memory, no glow | Memory, layer glow | Memory, mask glow |
+|---|---|---|---|---|
+| One Skia node per region | 0% | 59 MB | 61 MB | 66 MB |
+| One picture re-recorded each frame | 0% | 57 MB | 59 MB | 63 MB |
+
+Every case ran at the simulator's 60 frames a second with a median frame gap of 16.67 ms. Frame times here are the gaps between UI-thread frame callbacks. They show whether the UI thread kept up, not how long the GPU took, and a percentage measured against the median cannot show a rate that is slow on every frame.
 
 An idle app with no canvas uses 45 MB.
 
 Feed-card maps in a list:
 
-| Approach | Prepare 20 | Memory for 20 | Memory for 60 |
-|---|---|---|---|
-| A live canvas per card showing a recorded picture | 6 ms | 48 MB | 52 MB |
-| A PNG rendered once, shown as a React Native image | 116 ms | 57 MB | 67 MB |
+| Approach | Prepare 20 | Mounted and drawn, 20 | Memory for 20 | Memory for 60 |
+|---|---|---|---|---|
+| A live canvas per card showing a recorded picture | 8 ms | 32 ms | 48 MB | 52 MB |
+| A PNG rendered once, shown as a React Native image | 115 ms | 149 ms | 57 MB | 71 MB |
+
+"Mounted and drawn" is the time from first render to the second frame after it; an empty screen takes the same 32 ms. The image approach keeps its PNGs as base64 strings in JS memory, which is part of its cost here.
+
+Nothing here measures scrolling a long list of live canvases, so the "Lists" target is supported by memory and preparation time only until that is measured.
+
+The harness keeps its offscreen surfaces for the life of the app and releases image snapshots by hand as soon as they are read. Leaving either to the garbage collector, or freeing a surface between cases, intermittently crashed inside Skia's GPU resource cache; with both changes the draw case ran ten times in a row without a crash. The library itself never creates offscreen surfaces or snapshots.
 
 What the renderer does as a result:
 
-- **One picture, re-recorded on the UI thread only while values are animating.** It is no slower than one node per region, uses less memory, and needs one derived value where the other approach needs one per region.
-- **Glow as a single blurred layer** holding only the regions above the glow threshold. It costs less than half of a blurred mask per region in the typical case and is skipped when nothing glows.
-- **The feed-card map is a small canvas showing a picture recorded once.** Pre-rendering to an image was slower to prepare and used more memory.
+- **One picture, re-recorded on the UI thread only while values are animating.** Neither approach dropped frames in the simulator, so this run does not separate them on speed. The picture used 2 to 3 MB less memory, and it needs one derived value where the other approach needs one per region.
+- **Glow as a single blurred layer** holding only the regions above the glow threshold, skipped when nothing glows. This is a trade, not a clear win: the layer costs about 0.13 ms a frame more than a mask per region once warm. In return the first frame of a newly glowing set of regions costs about the same as a frame with no glow, where masks added 9 ms for 16 regions and about 25 ms for 70, on a Mac far faster than a phone. It also used 4 to 5 MB less memory. A steady small cost was chosen over a hitch whenever a different set of muscles lights up.
+- **The feed-card map is a small canvas showing a picture recorded once.** Pre-rendering to an image took about 14 times longer to prepare and used 9 MB more memory for 20 cards.
 
 Region ids are public API. Renaming or removing one is a breaking change and needs a major version.
 

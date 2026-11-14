@@ -27,7 +27,10 @@ function pid() {
 }
 
 function footprintMb() {
-  const out = sh('footprint', [String(pid())]);
+  const id = pid();
+  // the app is not running, for example because the case crashed it
+  if (!Number.isInteger(id)) return NaN;
+  const out = sh('footprint', [String(id)]);
   const m = /Footprint:\s*([\d.]+)\s*(KB|MB|GB)/.exec(out) ?? /phys_footprint:\s*([\d.]+)\s*(KB|MB|GB)/.exec(out);
   if (!m) return NaN;
   const scale = { KB: 1 / 1024, MB: 1, GB: 1024 }[m[2]];
