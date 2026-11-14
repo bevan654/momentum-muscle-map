@@ -19,6 +19,7 @@ Version 0.1: the data, the core logic and the Skia renderer exist. The renderer 
 Known gaps:
 
 - **Cost of mounting a map on a phone is not measured.** Each time a map mounts or its size, colours or glow setting change, Reanimated inspects everything the drawing worklet captured, including every Skia path of the level. The simulator shows no problem, but this has not been timed on a real phone.
+- **Touch delivery has no automated test.** Version 0.1.0 shipped with taps that never reached `onRegionPress` on iOS, because the canvas took the touch. The canvases now ignore touches, but nothing in this repo sends a real touch, so tap the example app by hand after changing how the map is mounted.
 - **Android is not benchmarked.** No Android device or emulator has been used yet. Rendering numbers so far come from the iPhone simulator only, so run the example app's benchmark on a real Android phone before relying on them.
 
 ## How it is structured
@@ -225,7 +226,7 @@ This harness adds about 4 MB of its own over the earlier feed-card cases, so a f
 
 The longest single frame gap while a screen mounted varied widely between runs of the same case, from 17 ms to 304 ms across twenty runs, with five of the twenty over 60 ms and no pattern by case. So mounting can drop frames, and how much is not pinned down. A virtualised list, which mounts only the visible cards, has not been measured.
 
-The on-device tap self-test taps every region's label point on the four bodies at all three levels: 600 of 600 found their own region.
+The on-device tap self-test runs the hit test at every region's label point on the four bodies at all three levels: 600 of 600 found their own region. It calls the hit test directly and sends no real touches, so it does not show that a touch reaches the map.
 
 Region ids are public API. Renaming or removing one is a breaking change and needs a major version.
 

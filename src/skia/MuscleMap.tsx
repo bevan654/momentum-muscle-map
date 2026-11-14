@@ -117,8 +117,10 @@ function MapCanvas({ body, values, level = 'muscles', colors, glow = true, anima
     return recorder.finishRecordingAsPicture();
   });
 
+  // The canvas takes no touches: left as a touch target, it swallows the taps
+  // meant for the Pressable around it (seen on iOS).
   return (
-    <Canvas style={{ width: size.width, height: size.height }}>
+    <Canvas style={{ width: size.width, height: size.height }} pointerEvents="none">
       <Picture picture={picture} />
     </Canvas>
   );
