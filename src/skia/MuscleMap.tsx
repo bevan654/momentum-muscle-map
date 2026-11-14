@@ -117,8 +117,9 @@ function MapCanvas({ body, values, level = 'muscles', colors, glow = true, anima
     return recorder.finishRecordingAsPicture();
   });
 
-  // The canvas takes no touches: left as a touch target, it swallows the taps
-  // meant for the Pressable around it (seen on iOS).
+  // The canvas takes no touches: left as a touch target on iOS, it swallows the
+  // taps meant for the Pressable around it. Skia's Android view ignores this
+  // prop, so the Pressable below also claims touches for itself.
   return (
     <Canvas style={{ width: size.width, height: size.height }} pointerEvents="none">
       <Picture picture={picture} />
@@ -164,7 +165,7 @@ export const MuscleMap = memo(function MuscleMap(props: MuscleMapProps) {
     );
   }
   return (
-    <Pressable style={style} onLayout={onLayout} onPress={onPress} accessibilityLabel={accessibilityLabel}>
+    <Pressable style={style} pointerEvents="box-only" onLayout={onLayout} onPress={onPress} accessibilityLabel={accessibilityLabel}>
       {map}
     </Pressable>
   );

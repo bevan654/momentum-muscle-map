@@ -19,7 +19,7 @@ Version 0.1: the data, the core logic and the Skia renderer exist. The renderer 
 Known gaps:
 
 - **Cost of mounting a map on a phone is not measured.** Each time a map mounts or its size, colours or glow setting change, Reanimated inspects everything the drawing worklet captured, including every Skia path of the level. The simulator shows no problem, but this has not been timed on a real phone.
-- **Touch delivery has no automated test.** Version 0.1.0 shipped with taps that never reached `onRegionPress` on iOS, because the canvas took the touch. The canvases now ignore touches, but nothing in this repo sends a real touch, so tap the example app by hand after changing how the map is mounted.
+- **Touch delivery has no automated test.** Version 0.1.0 shipped with taps that never reached `onRegionPress` on iOS, because the canvas took the touch. Now `MuscleMap`'s `Pressable` claims touches for itself and the canvases ignore them on iOS (Skia's Android view drops that setting). This was confirmed with real taps on the iOS simulator only. Nothing in this repo sends a real touch, so tap the example app by hand after changing how the map is mounted. On Android, a pressable card around a `MiniMuscleMap` has not been tried; if its taps are lost, give the card `pointerEvents="box-only"`.
 - **Android is not benchmarked.** No Android device or emulator has been used yet. Rendering numbers so far come from the iPhone simulator only, so run the example app's benchmark on a real Android phone before relying on them.
 
 ## How it is structured
