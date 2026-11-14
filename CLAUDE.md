@@ -42,7 +42,7 @@ Known gaps:
 │   ├── core/            # Pure TypeScript: types, value roll-up, colour curves, hit-test candidates
 │   ├── skia/            # React Native Skia renderer: MuscleMap, MiniMuscleMap, drawing, hit-testing
 │   └── __tests__/       # Tests for the data and the core
-└── .github/workflows/   # CI: type-check, tests, size check, build
+└── .github/workflows/   # CI: type-check, tests, size check, build, example type-check
 ```
 
 `example/` is an Expo app used for manual testing and benchmarks. It has its own `package.json` and imports the library straight from `../src`.
@@ -109,18 +109,20 @@ The pipeline fails if any of its checks fail. It checks that split pieces tile t
 import { MuscleMap, MiniMuscleMap } from 'momentum-muscle-map';
 import maleFront from 'momentum-muscle-map/data/male-front';
 
+// Defined once, outside the component, so they are the same objects on every render.
 const colors = { rest: '#2F2F35', accent: '#FF6B35', inert: '#27272C', body: '#1C1C20' };
+const values = { chest: 1, deltoid_anterior: 0.85, triceps_brachii_left: 0.4 };
 
 <MuscleMap
   body={maleFront}
-  values={{ chest: 1, deltoid_anterior: 0.85, triceps_brachii_left: 0.4 }}
+  values={values}
   level="muscles"
   colors={colors}
   onRegionPress={(region) => console.log(region.id, region.value)}
   style={{ flex: 1 }}
 />
 
-<MiniMuscleMap body={maleFront} values={{ chest: 1 }} colors={colors} width={56} height={120} />
+<MiniMuscleMap body={maleFront} values={values} colors={colors} width={56} height={120} />
 ```
 
 - **Values** are keyed by a group, muscle or part, with or without `_left` / `_right`. The most specific key wins. Coarser levels show the strongest of their parts, weighted by area. Values are clamped to 0..1 and non-muscle regions never light up.
@@ -211,7 +213,7 @@ The library's own components, measured the same way (two runs each):
 
 | Case | Frames slower than 1.5x the median | Memory | Notes |
 |---|---|---|---|
-| One full map at Full detail, idle | 0% | 57 MB | About 1% CPU against 0% for an empty screen; the harness's own frame counter accounts for it |
+| One full map at Full detail, idle | 0% | 57 MB | About 1% CPU against 0% for an empty screen. The empty screen has no frame counter and this case's harness has one, so the map's share was not measured separately |
 | The same map with its values changing every 400 ms | 0% | 59 MB | Glow on |
 | 20 feed-card maps | 0% | 53 MB | |
 | 60 feed-card maps | 0% | 55 MB | |
