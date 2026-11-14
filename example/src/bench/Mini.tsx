@@ -1,7 +1,7 @@
 // Many feed-card maps in a scrolling list, drawn two ways: a live Skia canvas
 // per card, or a PNG rendered once and shown with a plain React Native image.
 import { Canvas, ImageFormat, Picture, Skia } from '@shopify/react-native-skia';
-import type { SkPicture } from '@shopify/react-native-skia';
+import type { SkPicture, SkSurface } from '@shopify/react-native-skia';
 import { useEffect, useMemo } from 'react';
 import { Image, PixelRatio, ScrollView, View } from 'react-native';
 import type { BodyData } from 'momentum-muscle-map/core';
@@ -11,6 +11,8 @@ export type MiniVariant = 'canvas' | 'image' | 'none';
 
 const HEIGHT = 120;
 const WIDTH = 56;
+
+let pngSurface: SkSurface | null = null;
 
 interface Props {
   body: BodyData;
@@ -28,11 +30,15 @@ export function MiniList({ body, variant, count, onDone }: Props) {
     const { scale, tx, ty } = fit(body, WIDTH, HEIGHT);
     const pictures: SkPicture[] = [];
     const uris: string[] = [];
-    // one surface for every PNG, released afterwards, so the memory measured
-    // later is the images' and not what was used to make them
+    // One small surface renders every PNG. It is kept for the life of the app,
+    // because freeing an offscreen surface can crash inside Skia's GPU resource
+    // cache (see timed.ts), so the image case's memory includes it.
     const ratio = PixelRatio.get();
-    const surface = variant === 'image' ? Skia.Surface.MakeOffscreen(Math.round(WIDTH * ratio), Math.round(HEIGHT * ratio))! : null;
-    surface?.getCanvas().scale(ratio, ratio);
+    if (variant === 'image' && !pngSurface) {
+      pngSurface = Skia.Surface.MakeOffscreen(Math.round(WIDTH * ratio), Math.round(HEIGHT * ratio));
+      pngSurface?.getCanvas().scale(ratio, ratio);
+    }
+    const surface = variant === 'image' ? pngSurface : null;
     for (let i = 0; i < (variant === 'none' ? 0 : count); i++) {
       // a different picture per card, as a feed would have
       const values = valuesFor(body, 'groups', i % 2 ? PUSH : LEGS).map((v) => v * (0.5 + (0.5 * i) / count));
@@ -55,7 +61,6 @@ export function MiniList({ body, variant, count, onDone }: Props) {
         pictures.push(picture);
       }
     }
-    surface?.dispose();
     return { pictures, uris, prepareMs: performance.now() - t0 };
   }, [body, variant, count]);
 

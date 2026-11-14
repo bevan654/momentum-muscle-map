@@ -41,6 +41,18 @@ export function setupCosts(body: BodyData) {
   };
 }
 
+/**
+ * Reads the surface back, which makes the GPU finish what it was given. The
+ * snapshot is released straight away on this thread: left to the garbage
+ * collector it is freed from another thread, which intermittently trips an
+ * assertion in Skia's GPU resource cache.
+ */
+function finishGpu(surface: SkSurface) {
+  const snapshot = surface.makeImageSnapshot();
+  snapshot.readPixels();
+  snapshot.dispose();
+}
+
 /** Milliseconds to draw one frame into an offscreen surface of the given pixel size. */
 function drawCost(body: BodyData, surface: SkSurface, frames: number, variant: string, glow: GlowMode, worstCase: boolean) {
   const width = surface.width();
@@ -80,21 +92,34 @@ function drawCost(body: BodyData, surface: SkSurface, frames: number, variant: s
     }
     surface.flush();
   };
-  for (let i = 0; i < 10; i++) frame(i);
-  surface.makeImageSnapshot().readPixels();
+  // The very first frame, timed on its own: it pays any first-use cost, such as
+  // blurring a region's mask for the first time. Each case builds new paths, so
+  // nothing drawn by an earlier case is cached for it.
+  const tf = now();
+  frame(0);
+  finishGpu(surface);
+  const firstFrame = now() - tf;
+  // Then warm up over one whole blend, so every region that glows at any step
+  // has been drawn once and no first-use cost lands inside the steady timing.
+  for (let i = 0; i < 60; i++) frame(i);
+  finishGpu(surface);
   const t0 = now();
   for (let i = 0; i < frames; i++) frame(i);
-  // reading pixels back makes the GPU finish, so its work is inside the timing
-  surface.makeImageSnapshot().readPixels();
+  // the GPU's work is inside the timing
+  finishGpu(surface);
   const total = now() - t0;
   // recording on its own, without drawing
   const tr = now();
   for (let i = 0; i < frames; i++) record((i % 60) / 59);
   const recordOnly = (now() - tr) / frames;
-  return { msPerFrame: Math.round((total / frames) * 1000) / 1000, recordOnlyMs: Math.round(recordOnly * 1000) / 1000 };
+  return {
+    msPerFrame: Math.round((total / frames) * 1000) / 1000,
+    firstFrameMs: Math.round(firstFrame * 100) / 100,
+    recordOnlyMs: Math.round(recordOnly * 1000) / 1000,
+  };
 }
 
-const keptSurfaces: SkSurface[] = [];
+const keptSurfaces = new Map<string, SkSurface>();
 
 export function drawCosts(body: BodyData) {
   const out: Record<string, unknown> = {};
@@ -104,12 +129,12 @@ export function drawCosts(body: BodyData) {
     // One surface per size, shared by every case and kept for the life of the
     // app. Freeing offscreen surfaces between cases, by hand or by the garbage
     // collector, intermittently trips an assertion in Skia's GPU resource cache.
-    const surface = Skia.Surface.MakeOffscreen(w, h);
+    const surface = keptSurfaces.get(sizeName) ?? Skia.Surface.MakeOffscreen(w, h);
     if (!surface) {
       out[sizeName] = { error: 'no offscreen surface' };
       continue;
     }
-    keptSurfaces.push(surface);
+    keptSurfaces.set(sizeName, surface);
     for (const glow of ['none', 'mask', 'layer'] as const) {
       for (const variant of ['direct', 'replay', 'rerecord']) {
         out[`${sizeName}/${glow}/${variant}`] = drawCost(body, surface, 120, variant, glow, false);
