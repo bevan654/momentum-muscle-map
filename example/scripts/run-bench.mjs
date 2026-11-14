@@ -12,10 +12,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const BUNDLE = 'com.momentum.musclemap.example';
+// Set BENCH_DEVICE to a simulator's id when more than one is booted.
+const DEVICE = process.env.BENCH_DEVICE || 'booted';
 const TIMED = ['setup', 'draw', 'selftest'];
 const LIVE = ['live-static-none', 'live-nodes-none', 'live-nodes-mask', 'live-nodes-layer', 'live-picture-none', 'live-picture-mask', 'live-picture-layer'];
 const MEMORY = ['mini-none-0', 'mini-canvas-20', 'mini-image-20', 'mini-canvas-60', 'mini-image-60'];
-const RENDERER = ['renderer-idle-1', 'renderer-animate-1', 'renderer-mini-20', 'renderer-mini-60', 'renderer-scroll-60'];
+const RENDERER = ['renderer-idle-1', 'renderer-animate-1', 'renderer-scale-1', 'renderer-mini-20', 'renderer-mini-60', 'renderer-scroll-60'];
 const cases = process.argv.length > 2 ? process.argv.slice(2) : [...TIMED, ...LIVE, ...MEMORY, ...RENDERER];
 
 const sh = (cmd, args) => execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
@@ -23,7 +25,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const simctl = (...args) => sh('xcrun', ['simctl', ...args]);
 
 function pid() {
-  const line = simctl('spawn', 'booted', 'launchctl', 'list').split('\n').find((l) => l.includes(BUNDLE));
+  const line = simctl('spawn', DEVICE, 'launchctl', 'list').split('\n').find((l) => l.includes(BUNDLE));
   return line ? Number(line.trim().split(/\s+/)[0]) : NaN;
 }
 
@@ -40,11 +42,11 @@ function footprintMb() {
 
 function launch(name) {
   try {
-    simctl('terminate', 'booted', BUNDLE);
+    simctl('terminate', DEVICE, BUNDLE);
   } catch {
     // not running
   }
-  simctl('launch', 'booted', BUNDLE, '-benchCase', name);
+  simctl('launch', DEVICE, BUNDLE, '-benchCase', name);
 }
 
 async function run(name, documents) {
@@ -67,7 +69,7 @@ async function run(name, documents) {
   return result;
 }
 
-const documents = path.join(simctl('get_app_container', 'booted', BUNDLE, 'data'), 'Documents');
+const documents = path.join(simctl('get_app_container', DEVICE, BUNDLE, 'data'), 'Documents');
 const results = {};
 for (const name of cases) {
   results[name] = await run(name, documents);

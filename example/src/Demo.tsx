@@ -40,11 +40,11 @@ function Chips<T extends string>({ options, value, onChange }: { options: readon
   );
 }
 
-export function Demo({ initialPreset = 'Push', initialLevel = 'muscles' }: { initialPreset?: string; initialLevel?: Level }) {
+export function Demo({ initialPreset = 'Push', initialLevel = 'muscles', initialPalette = 'accent' }: { initialPreset?: string; initialLevel?: Level; initialPalette?: 'accent' | 'scale' }) {
   const [sex, setSex] = useState<'male' | 'female'>('male');
   const [level, setLevel] = useState<Level>(initialLevel);
   const [preset, setPreset] = useState(initialPreset in PRESETS ? initialPreset : 'Push');
-  const [palette, setPalette] = useState<'accent' | 'scale'>('accent');
+  const [palette, setPalette] = useState<'accent' | 'scale'>(initialPalette);
   const [pressed, setPressed] = useState<PressedRegion | null>(null);
   const colors = palette === 'scale' ? SCALE : COLORS;
   const values = PRESETS[preset]!;

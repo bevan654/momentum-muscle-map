@@ -14,7 +14,7 @@ Every region id is snake_case and ends in `_left` or `_right`, meaning the subje
 
 ## Status
 
-Version 0.1: the data, the core logic and the Skia renderer exist. The renderer draws the heatmap with animated transitions and glow at three levels, reports taps, and has a small static map for feed cards. Zoom, pan and the close-up view from the HTML prototype are not built.
+Version 0.2: the data, the core logic and the Skia renderer exist. The renderer draws the heatmap with animated transitions and glow at three levels, in one accent colour or along a colour scale, reports taps, and has a small static map for feed cards. Zoom, pan and the close-up view from the HTML prototype are not built.
 
 Known gaps:
 
@@ -153,7 +153,7 @@ These are what the library is built and reviewed against.
 
 Measured with the example app as a release build on an iPhone 17 Pro simulator (iOS 26.5, 60 Hz) on an Apple-silicon Mac. A simulator on a fast Mac is much quicker than a phone, so read these as comparisons between approaches and as headroom, not as device numbers. Android has not been measured.
 
-To rerun: `cd example && npx expo run:ios --configuration Release`, then `npm run bench`.
+To rerun: `cd example && npx expo run:ios --configuration Release`, then `npm run bench`. With more than one simulator booted, set `BENCH_DEVICE` to the id of the one to use.
 
 Set-up, male front body:
 
@@ -226,6 +226,8 @@ The library's own components, measured the same way (four runs each). CPU is not
 This harness adds about 4 MB of its own over the earlier feed-card cases, so a feed-card map costs roughly 0.1 MB. Feed-card maps with the same body and colours share one set of paints; that made no measurable difference to memory (53 and 55 to 56 MB before and after) and is kept because it creates fewer native objects.
 
 The longest single frame gap while a screen mounted varied widely between runs of the same case, from 17 ms to 304 ms across twenty runs, with five of the twenty over 60 ms and no pattern by case. So mounting can drop frames, and how much is not pinned down. A virtualised list, which mounts only the visible cards, has not been measured.
+
+Version 0.2 changed what an animating map does each frame: it now works out a colour and glow for every region and blends colours, where 0.1 blended values. Checked on an iPhone 17 simulator (release build, two runs): the animating map with the accent ramp and with a three-colour scale both showed 0% slow frames and the same memory (42 MB each; this simulator reads lower than the one used for the tables above, so compare only within this check). The colour calculation for one frame at full detail took under 0.001 ms in Node, about the same as the calculation it replaced; it was not timed on Hermes.
 
 The on-device tap self-test runs the hit test at every region's label point on the four bodies at all three levels: 600 of 600 found their own region. It calls the hit test directly and sends no real touches, so it does not show that a touch reaches the map.
 

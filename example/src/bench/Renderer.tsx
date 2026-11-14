@@ -1,5 +1,6 @@
 // The library's own components under load: one full map whose values change
-// every 400 ms (or never), and a list of feed-card maps, still or scrolling.
+// every 400 ms (or never), with the accent ramp or a colour scale, and a list
+// of feed-card maps, still or scrolling.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { useFrameCallback, useSharedValue } from 'react-native-reanimated';
@@ -8,9 +9,10 @@ import type { MuscleMapColors } from 'momentum-muscle-map';
 import maleFront from 'momentum-muscle-map/data/male-front';
 import { COLORS, LEGS, PUSH, summarise } from './scene';
 
-export type RendererVariant = 'idle' | 'animate' | 'mini' | 'scroll';
+export type RendererVariant = 'idle' | 'animate' | 'scale' | 'mini' | 'scroll';
 
 const MAP_COLORS: MuscleMapColors = { rest: COLORS.rest, accent: COLORS.accent, inert: COLORS.inert, body: COLORS.body };
+const SCALE_COLORS: MuscleMapColors = { ...MAP_COLORS, scale: ['#22C55E', '#F59E0B', '#EF4444'] };
 
 interface Props {
   variant: RendererVariant;
@@ -39,7 +41,7 @@ export function Renderer({ variant, count, seconds, onDone }: Props) {
   useEffect(() => {
     let down = false;
     const flip =
-      variant === 'animate'
+      variant === 'animate' || variant === 'scale'
         ? setInterval(() => setStep((s) => s + 1), 400)
         : variant === 'scroll'
           ? setInterval(() => list.current?.scrollTo({ y: (down = !down) ? 700 : 0, animated: true }), 600)
@@ -77,7 +79,7 @@ export function Renderer({ variant, count, seconds, onDone }: Props) {
   }
   return (
     <View style={{ flex: 1 }}>
-      <MuscleMap body={maleFront} values={step % 2 ? LEGS : PUSH} level="parts" colors={MAP_COLORS} padding={12} style={{ flex: 1 }} />
+      <MuscleMap body={maleFront} values={step % 2 ? LEGS : PUSH} level="parts" colors={variant === 'scale' ? SCALE_COLORS : MAP_COLORS} padding={12} style={{ flex: 1 }} />
     </View>
   );
 }
