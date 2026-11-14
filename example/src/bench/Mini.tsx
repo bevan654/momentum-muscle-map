@@ -28,6 +28,11 @@ export function MiniList({ body, variant, count, onDone }: Props) {
     const { scale, tx, ty } = fit(body, WIDTH, HEIGHT);
     const pictures: SkPicture[] = [];
     const uris: string[] = [];
+    // one surface for every PNG, released afterwards, so the memory measured
+    // later is the images' and not what was used to make them
+    const ratio = PixelRatio.get();
+    const surface = variant === 'image' ? Skia.Surface.MakeOffscreen(Math.round(WIDTH * ratio), Math.round(HEIGHT * ratio))! : null;
+    surface?.getCanvas().scale(ratio, ratio);
     for (let i = 0; i < (variant === 'none' ? 0 : count); i++) {
       // a different picture per card, as a feed would have
       const values = valuesFor(body, 'groups', i % 2 ? PUSH : LEGS).map((v) => v * (0.5 + (0.5 * i) / count));
@@ -37,17 +42,20 @@ export function MiniList({ body, variant, count, onDone }: Props) {
       canvas.scale(scale, scale);
       drawScene(canvas, scene, zero, values, 1, 'none');
       const picture = recorder.finishRecordingAsPicture();
-      pictures.push(picture);
-      if (variant === 'image') {
-        const ratio = PixelRatio.get();
-        const surface = Skia.Surface.MakeOffscreen(Math.round(WIDTH * ratio), Math.round(HEIGHT * ratio))!;
+      if (surface) {
         const c = surface.getCanvas();
-        c.scale(ratio, ratio);
+        c.clear(Skia.Color('transparent'));
         c.drawPicture(picture);
         surface.flush();
-        uris.push(`data:image/png;base64,${surface.makeImageSnapshot().encodeToBase64(ImageFormat.PNG, 100)}`);
+        const snapshot = surface.makeImageSnapshot();
+        uris.push(`data:image/png;base64,${snapshot.encodeToBase64(ImageFormat.PNG, 100)}`);
+        snapshot.dispose();
+        picture.dispose();
+      } else {
+        pictures.push(picture);
       }
     }
+    surface?.dispose();
     return { pictures, uris, prepareMs: performance.now() - t0 };
   }, [body, variant, count]);
 
@@ -72,13 +80,14 @@ export function MiniList({ body, variant, count, onDone }: Props) {
     <ScrollView contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, padding: 16 }}>
       {pictures.map((picture, i) => (
         <View key={i} style={{ width: WIDTH, height: HEIGHT }}>
-          {variant === 'canvas' ? (
-            <Canvas style={{ width: WIDTH, height: HEIGHT }}>
-              <Picture picture={picture} />
-            </Canvas>
-          ) : (
-            <Image source={{ uri: uris[i] }} style={{ width: WIDTH, height: HEIGHT }} />
-          )}
+          <Canvas style={{ width: WIDTH, height: HEIGHT }}>
+            <Picture picture={picture} />
+          </Canvas>
+        </View>
+      ))}
+      {uris.map((uri, i) => (
+        <View key={i} style={{ width: WIDTH, height: HEIGHT }}>
+          <Image source={{ uri }} style={{ width: WIDTH, height: HEIGHT }} />
         </View>
       ))}
     </ScrollView>
