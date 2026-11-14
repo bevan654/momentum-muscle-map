@@ -19,3 +19,6 @@ jobs:
       - run: npm test
       - run: npm run check:size
       - run: npm run build
+      - name: Type-check the example app
+        working-directory: example
+        run: npm ci --ignore-scripts && npm run typecheck

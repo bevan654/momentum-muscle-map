@@ -36,9 +36,20 @@
     "gen:data": "node scripts/gen-data.mjs",
     "check:size": "node scripts/check-size.mjs"
   },
+  "peerDependencies": {
+    "@shopify/react-native-skia": ">=2.2.0",
+    "react": ">=19.0.0",
+    "react-native": ">=0.81.0",
+    "react-native-reanimated": ">=4.1.0"
+  },
   "devDependencies": {
+    "@shopify/react-native-skia": "^2.2.12",
+    "@types/react": "~19.1.0",
+    "react": "^19.1.0",
     "react-native": "0.81.5",
     "react-native-builder-bob": "^0.44.1",
+    "react-native-reanimated": "~4.1.1",
+    "react-native-worklets": "^0.5.1",
     "typescript": "~5.9.3",
     "vitest": "^5.1.0"
   },
