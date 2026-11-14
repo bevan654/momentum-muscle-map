@@ -114,8 +114,9 @@ export function describeUnit(model: BodyModel, level: Level, index: number): Reg
 
 function lookup(values: MuscleValues, key: string, side: Side): number | undefined {
   let v = values[`${key}_${side}`];
-  if (v === undefined) v = values[key];
-  if (v === undefined || Number.isNaN(v)) return undefined;
+  // a sided value that is not a usable number must not hide the unsided one
+  if (typeof v !== 'number' || Number.isNaN(v)) v = values[key];
+  if (typeof v !== 'number' || Number.isNaN(v)) return undefined;
   return v < 0 ? 0 : v > 1 ? 1 : v;
 }
 
