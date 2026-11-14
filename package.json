@@ -1,6 +1,6 @@
 {
   "name": "momentum-muscle-map",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Detailed, interactive muscle map for React Native",
   "license": "UNLICENSED",
   "private": true,

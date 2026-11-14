@@ -41,8 +41,10 @@ export const MiniMuscleMap = memo(function MiniMuscleMap({ body, values, colors,
     return recorder.finishRecordingAsPicture();
   }, [body, values, rest, accent, inert, bodyColor, width, height]);
 
+  // No touches on iOS, so a pressable card around the map still gets its taps.
+  // Skia's Android view ignores this prop.
   return (
-    <Canvas style={[{ width, height }, style]} accessible={accessibilityLabel != null} accessibilityRole="image" accessibilityLabel={accessibilityLabel}>
+    <Canvas style={[{ width, height }, style]} pointerEvents="none" accessible={accessibilityLabel != null} accessibilityRole="image" accessibilityLabel={accessibilityLabel}>
       <Picture picture={picture} />
     </Canvas>
   );
