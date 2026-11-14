@@ -27,7 +27,7 @@ export interface MuscleMapProps {
   glow?: boolean;
   /** Milliseconds a change of values takes to fade in. 0 switches at once. Defaults to 300. */
   animationDuration?: number;
-  /** Space kept clear around the body, in points. Defaults to 0. */
+  /** Space kept clear around the body, in points. Defaults to 0. Use this, not padding or borders in `style`. */
   padding?: number;
   /** Called with the region under a tap. Without it the map ignores touches. */
   onRegionPress?: (region: PressedRegion) => void;
@@ -48,7 +48,7 @@ interface Shown {
 
 const EASING = Easing.out(Easing.cubic);
 
-function Map({ body, values, level = 'muscles', colors, glow = true, animationDuration = 300, padding = 0, size }: MuscleMapProps & { size: Size }) {
+function MapCanvas({ body, values, level = 'muscles', colors, glow = true, animationDuration = 300, padding = 0, size }: MuscleMapProps & { size: Size }) {
   const scene = getBodyScene(body);
   ensureLevel(body, scene, level);
   const { rest, accent, inert, body: bodyColor } = colors;
@@ -153,10 +153,10 @@ export const MuscleMap = memo(function MuscleMap(props: MuscleMapProps) {
   );
 
   // Keyed by body, so switching body starts clean instead of blending two different bodies.
-  const map = size && size.width > 0 && size.height > 0 ? <Map key={getBodyScene(body).id} {...props} size={size} /> : null;
+  const map = size && size.width > 0 && size.height > 0 ? <MapCanvas key={getBodyScene(body).id} {...props} size={size} /> : null;
   if (!onRegionPress) {
     return (
-      <View style={style} onLayout={onLayout} accessibilityRole="image" accessibilityLabel={accessibilityLabel}>
+      <View style={style} onLayout={onLayout} accessible={accessibilityLabel != null} accessibilityRole="image" accessibilityLabel={accessibilityLabel}>
         {map}
       </View>
     );

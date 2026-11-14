@@ -3,7 +3,7 @@ import { memo, useMemo } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { fitBody, getBodyModel, resolveValues } from '../core';
 import type { BodyData, MuscleValues } from '../core';
-import { createBrush, drawBody } from './draw';
+import { drawBody, getSharedBrush } from './draw';
 import type { MuscleMapColors } from './draw';
 import { ensureLevel, getBodyScene } from './scene';
 
@@ -28,7 +28,7 @@ export const MiniMuscleMap = memo(function MiniMuscleMap({ body, values, colors,
   const picture = useMemo(() => {
     const scene = getBodyScene(body);
     const paths = ensureLevel(body, scene, 'groups');
-    const brush = createBrush(scene.outline, { rest, accent, inert, body: bodyColor });
+    const brush = getSharedBrush(scene.outline, { rest, accent, inert, body: bodyColor });
     const resolved = resolveValues(getBodyModel(body), 'groups', values);
     const { scale, tx, ty } = fitBody(body, width, height);
     const recorder = Skia.PictureRecorder();
@@ -42,7 +42,7 @@ export const MiniMuscleMap = memo(function MiniMuscleMap({ body, values, colors,
   }, [body, values, rest, accent, inert, bodyColor, width, height]);
 
   return (
-    <Canvas style={[{ width, height }, style]} accessibilityRole="image" accessibilityLabel={accessibilityLabel}>
+    <Canvas style={[{ width, height }, style]} accessible={accessibilityLabel != null} accessibilityRole="image" accessibilityLabel={accessibilityLabel}>
       <Picture picture={picture} />
     </Canvas>
   );

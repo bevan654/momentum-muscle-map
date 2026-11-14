@@ -51,6 +51,28 @@ export function createBrush(outline: SkPath, colors: MuscleMapColors): Brush {
   };
 }
 
+const sharedBrushes = new WeakMap<SkPath, Map<string, Brush>>();
+
+/**
+ * A brush shared by every static map with the same body and colours. Only for
+ * maps drawn on the JS thread: an animated map draws on the UI thread and
+ * changes its brush's paints there, so it needs a brush of its own.
+ */
+export function getSharedBrush(outline: SkPath, colors: MuscleMapColors): Brush {
+  let byColors = sharedBrushes.get(outline);
+  if (!byColors) {
+    byColors = new Map();
+    sharedBrushes.set(outline, byColors);
+  }
+  const key = `${colors.rest}|${colors.accent}|${colors.inert}|${colors.body}`;
+  let brush = byColors.get(key);
+  if (!brush) {
+    brush = createBrush(outline, colors);
+    byColors.set(key, brush);
+  }
+  return brush;
+}
+
 /**
  * Draws the silhouette and one level of regions in body coordinates.
  *
