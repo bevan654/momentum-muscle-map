@@ -86,6 +86,8 @@ export function encodeRel(sub) {
   let out = '';
   let x = 0;
   let y = 0;
+  let startX = 0;
+  let startY = 0;
   let last = '';
   const emit = (c, vals) => {
     // a repeated command letter can be left out; the numbers just continue
@@ -98,6 +100,7 @@ export function encodeRel(sub) {
       out += 'M' + join(v);
       last = 'M*'; // never continue an M run: implicit pairs after M would be absolute
       [x, y] = v;
+      [startX, startY] = v;
     } else if (c === 'L') {
       const dx = v[0] - x;
       const dy = v[1] - y;
@@ -112,6 +115,9 @@ export function encodeRel(sub) {
     } else {
       out += 'z';
       last = 'z';
+      // closing a sub-path moves the current point back to where it started
+      x = startX;
+      y = startY;
     }
   }
   return out;
@@ -122,6 +128,8 @@ export function decodeRel(s) {
   const out = [];
   let x = 0;
   let y = 0;
+  let startX = 0;
+  let startY = 0;
   let cmd = '';
   let nums = [];
   const need = { M: 2, l: 2, h: 1, v: 1, c: 6 };
@@ -132,6 +140,7 @@ export function decodeRel(s) {
       const a = nums.slice(i, i + n);
       if (cmd === 'M') {
         [x, y] = a;
+        [startX, startY] = a;
         out.push(['M', x, y]);
       } else if (cmd === 'l') {
         x += a[0];
@@ -155,7 +164,11 @@ export function decodeRel(s) {
     if (m[1]) {
       flush();
       cmd = m[1];
-      if (cmd === 'z') out.push(['Z']);
+      if (cmd === 'z') {
+        out.push(['Z']);
+        x = startX;
+        y = startY;
+      }
     } else {
       nums.push(tenths(m[2]));
     }

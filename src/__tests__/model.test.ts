@@ -71,6 +71,8 @@ describe('resolveValues', () => {
     expect(value('groups', { chest: -3 }, 'chest_left')).toBe(0);
     expect(value('groups', { chest: Number.NaN }, 'chest_left')).toBe(0);
     expect(value('groups', { chest: undefined, chest_left: 0.5 }, 'chest_left')).toBe(0.5);
+    expect(value('groups', { chest: 0.5, chest_left: Number.NaN }, 'chest_left')).toBe(0.5);
+    expect(value('groups', { chest: null } as unknown as MuscleValues, 'chest_left')).toBe(0);
   });
 
   it('never lights non-muscle units', () => {
