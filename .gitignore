@@ -1,0 +1,14 @@
+node_modules/
+lib/
+dist/
+*.tgz
+
+# Geometry pipeline: downloaded source artwork, output and Python caches
+pipeline/vendor/
+pipeline/out/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+.DS_Store
