@@ -14,7 +14,11 @@ Every region id is snake_case and ends in `_left` or `_right`, meaning the subje
 
 ## Status
 
-Early. The geometry pipeline and the data generator exist and are validated. The library code (core logic and the Skia renderer) is not written yet.
+The geometry pipeline, the generated data and the core logic exist and are tested. The Skia renderer is not written yet.
+
+Known gaps:
+
+- **Android is not benchmarked.** No Android device or emulator has been used yet. Rendering numbers so far come from the iPhone simulator only, so run the example app's benchmark on a real Android phone before relying on them.
 
 ## How it is structured
 
@@ -28,15 +32,38 @@ Early. The geometry pipeline and the data generator exist and are validated. The
 │   ├── export.py        # Validation and export to pipeline/out/data.json
 │   ├── vendor/          # Unpacked @musclemap/assets (gitignored, downloaded locally)
 │   └── out/             # Pipeline output (gitignored)
+├── NOTICE               # MIT notice for the source artwork. Ships with the package.
 ├── scripts/
-│   └── gen-data.mjs     # Turns pipeline output into the compact data modules in src/data
-└── src/                 # The library (planned)
-    ├── data/            # Generated: one module per body, plus the hierarchy. Never edit by hand.
-    ├── core/            # Pure TypeScript: types, value roll-up, colour ramp, hit-testing
-    └── skia/            # React Native Skia renderer and the small feed-card map
+│   ├── gen-data.mjs     # Turns pipeline output into the compact data modules in src/data
+│   └── check-size.mjs   # Fails if the data is over the size budgets in Targets
+├── src/                 # The library
+│   ├── index.ts         # Package entry point
+│   ├── data/            # Generated: one module per body, plus the hierarchy. Never edit by hand.
+│   ├── core/            # Pure TypeScript: types, value roll-up, colour curves, hit-test candidates
+│   ├── skia/            # React Native Skia renderer and the small feed-card map (planned)
+│   └── __tests__/       # Tests for the data and the core
+└── .github/workflows/   # CI: type-check, tests, size check, build
 ```
 
-Planned alongside these: `example/` (an Expo app used for manual testing and on-device benchmarks) and `bench/` (benchmark scripts).
+Planned alongside these: `example/` (an Expo app used for manual testing and on-device benchmarks).
+
+### Commands
+
+| Command | What it does |
+|---|---|
+| `npm run typecheck` | Type-checks `src` |
+| `npm test` | Runs the tests |
+| `npm run check:size` | Compiles the data to Hermes bytecode and checks it against the budgets |
+| `npm run build` | Builds `lib/` with react-native-builder-bob |
+| `npm run gen:data` | Regenerates `src/data` from `pipeline/out/data.json` |
+
+### Entry points
+
+| Import | Contents |
+|---|---|
+| `momentum-muscle-map` | Everything the library exports |
+| `momentum-muscle-map/core` | The core only, with no React Native imports |
+| `momentum-muscle-map/data/male-front` (and `male-back`, `female-front`, `female-back`) | One body's data, so an app loads only the bodies it shows |
 
 ### The three layers
 
@@ -62,7 +89,7 @@ tar -xzf pipeline/vendor/musclemap-assets-1.1.0.tgz -C pipeline/vendor/musclemap
 python3 -I pipeline/export.py
 
 # 3. Generate the data modules
-node scripts/gen-data.mjs
+npm run gen:data
 ```
 
 The pipeline fails if any of its checks fail. It checks that split pieces tile their source shape (area sum within ±0.5%), that regions do not overlap beyond what the source art already has, that drawn regions stay inside the silhouette, and that the male and female bodies expose the same region ids.
@@ -75,8 +102,8 @@ These are what the library is built and reviewed against.
 |---|---|
 | Runtime dependencies | None. React, React Native, Skia, Reanimated and Gesture Handler are peer dependencies. |
 | Native code | None, so the library can ship in an over-the-air update. |
-| Data for one body, as Hermes bytecode | 80 KB or less (currently 70 KB) |
-| Data for all four bodies, as Hermes bytecode | 300 KB or less (currently 267 KB) |
+| Data for one body, as Hermes bytecode | 80 KB or less (currently 62 to 72 KB) |
+| Data for all four bodies, as Hermes bytecode | 300 KB or less (currently 260 KB) |
 | Loading | An app only loads the bodies it shows. |
 | Smoothness | Colour transitions, glow, zoom and pan run on the UI thread at the display's frame rate, with no React re-render per frame. |
 | Lists | The small feed-card map must be cheap enough to show many times in a scrolling list. |
