@@ -14,7 +14,7 @@ Every region id is snake_case and ends in `_left` or `_right`, meaning the subje
 
 ## Status
 
-The geometry pipeline, the generated data and the core logic exist and are tested. The example app has a benchmark harness. The Skia renderer is not written yet.
+Version 0.1: the data, the core logic and the Skia renderer exist. The renderer draws the heatmap with animated transitions and glow at three levels, reports taps, and has a small static map for feed cards. Zoom, pan and the close-up view from the HTML prototype are not built.
 
 Known gaps:
 
@@ -40,7 +40,7 @@ Known gaps:
 │   ├── index.ts         # Package entry point
 │   ├── data/            # Generated: one module per body, plus the hierarchy. Never edit by hand.
 │   ├── core/            # Pure TypeScript: types, value roll-up, colour curves, hit-test candidates
-│   ├── skia/            # React Native Skia renderer and the small feed-card map (planned)
+│   ├── skia/            # React Native Skia renderer: MuscleMap, MiniMuscleMap, drawing, hit-testing
 │   └── __tests__/       # Tests for the data and the core
 └── .github/workflows/   # CI: type-check, tests, size check, build
 ```
@@ -49,10 +49,11 @@ Known gaps:
 
 ```
 example/
-├── App.tsx              # Benchmark harness: tap a case, or start one with a launch argument
+├── App.tsx              # Switches between the demo and the benchmarks
+├── src/Demo.tsx         # Manual test screen for the renderer
 ├── metro.config.js      # Resolves momentum-muscle-map to ../src
 ├── scripts/run-bench.mjs  # Drives every case on a booted iOS simulator and prints the results
-└── src/bench/           # The benchmark cases
+└── src/bench/           # The benchmark harness and its cases, including an on-device tap self-test
 ```
 
 ### Commands
@@ -69,7 +70,7 @@ example/
 
 | Import | Contents |
 |---|---|
-| `momentum-muscle-map` | Everything the library exports |
+| `momentum-muscle-map` | The renderer (`MuscleMap`, `MiniMuscleMap`) and the core |
 | `momentum-muscle-map/core` | The core only, with no React Native imports |
 | `momentum-muscle-map/data/male-front` (and `male-back`, `female-front`, `female-back`) | One body's data, so an app loads only the bodies it shows |
 
@@ -102,6 +103,32 @@ npm run gen:data
 
 The pipeline fails if any of its checks fail. It checks that split pieces tile their source shape (area sum within ±0.5%), that regions do not overlap beyond what the source art already has, that drawn regions stay inside the silhouette, and that the male and female bodies expose the same region ids.
 
+### Using it
+
+```tsx
+import { MuscleMap, MiniMuscleMap } from 'momentum-muscle-map';
+import maleFront from 'momentum-muscle-map/data/male-front';
+
+const colors = { rest: '#2F2F35', accent: '#FF6B35', inert: '#27272C', body: '#1C1C20' };
+
+<MuscleMap
+  body={maleFront}
+  values={{ chest: 1, deltoid_anterior: 0.85, triceps_brachii_left: 0.4 }}
+  level="muscles"
+  colors={colors}
+  onRegionPress={(region) => console.log(region.id, region.value)}
+  style={{ flex: 1 }}
+/>
+
+<MiniMuscleMap body={maleFront} values={{ chest: 1 }} colors={colors} width={56} height={120} />
+```
+
+- **Values** are keyed by a group, muscle or part, with or without `_left` / `_right`. The most specific key wins. Coarser levels show the strongest of their parts, weighted by area. Values are clamped to 0..1 and non-muscle regions never light up.
+- **Colours** all come from the app, so the library has no theme of its own.
+- **Changes to `values`** fade over `animationDuration` (300 ms by default) on the UI thread. Changing `level` or `body` switches at once, because the regions are different.
+- **Keep `values` and `colors` stable between renders** (`useMemo` or a constant). A new object each render makes the map resolve and redraw each render.
+- **`MiniMuscleMap`** is drawn at group level with no glow, animation or touch handling, and takes a fixed `width` and `height` so a list can lay it out without measuring.
+
 ## Targets
 
 These are what the library is built and reviewed against.
@@ -131,7 +158,7 @@ Set-up, male front body:
 | Resolve values for a level | 0.04 ms |
 | Hit-test one tap | 0.002 ms |
 
-Cost of drawing one frame at Full detail into a 966 by 2100 pixel surface. Each frame is one step of a blend between two workouts, so the number of glowing regions changes from frame to frame: between 0 and 16 of the 72, about 10 on average. The steady figures are taken after a warm-up over the whole blend, and are the median of ten runs; single runs varied by about 0.05 ms, with occasional outliers of up to 0.2 ms.
+Cost of drawing one frame at Full detail into a 966 by 2100 pixel surface. Each frame is one step of a blend between two workouts, so the number of glowing regions changes from frame to frame: between 0 and 16 of the 72, about 10 on average. Every figure includes one read-back of the surface, which is the same for every approach. The steady figures are taken after a warm-up over the whole blend, and are the median of ten runs; single runs varied by about 0.05 ms, with occasional outliers of up to 0.2 ms.
 
 | Approach | No glow | Glow as one blurred layer | Glow as a blurred mask per region |
 |---|---|---|---|
@@ -170,7 +197,7 @@ Feed-card maps in a list:
 
 "Mounted and drawn" is the time from first render to the second frame after it; an empty screen takes the same 32 ms. The image approach keeps its PNGs as base64 strings in JS memory, which is part of its cost here.
 
-Nothing here measures scrolling a long list of live canvases, so the "Lists" target is supported by memory and preparation time only until that is measured.
+These cases do not scroll. Scrolling is measured with the library's own component further down.
 
 The harness keeps its offscreen surfaces for the life of the app and releases image snapshots by hand as soon as they are read. Leaving either to the garbage collector, or freeing a surface between cases, intermittently crashed inside Skia's GPU resource cache; with both changes the draw case ran ten times in a row without a crash. The library itself never creates offscreen surfaces or snapshots.
 
@@ -179,6 +206,20 @@ What the renderer does as a result:
 - **One picture, re-recorded on the UI thread only while values are animating.** Neither approach dropped frames in the simulator, so this run does not separate them on speed. The picture used 2 to 3 MB less memory, and it needs one derived value where the other approach needs one per region.
 - **Glow as a single blurred layer** holding only the regions above the glow threshold, skipped when nothing glows. This is a trade, not a clear win: the layer costs about 0.13 ms a frame more than a mask per region once warm. In return the first frame of a newly glowing set of regions costs about the same as a frame with no glow, where masks added 9 ms for 16 regions and about 25 ms for 70, on a Mac far faster than a phone. It also used 4 to 5 MB less memory. A steady small cost was chosen over a hitch whenever a different set of muscles lights up.
 - **The feed-card map is a small canvas showing a picture recorded once.** Pre-rendering to an image took about 14 times longer to prepare and used 9 MB more memory for 20 cards.
+
+The library's own components, measured the same way (two runs each):
+
+| Case | Frames slower than 1.5x the median | Memory | Notes |
+|---|---|---|---|
+| One full map at Full detail, idle | 0% | 57 MB | About 1% CPU against 0% for an empty screen; the harness's own frame counter accounts for it |
+| The same map with its values changing every 400 ms | 0% | 59 MB | Glow on |
+| 20 feed-card maps | 0% | 53 MB | |
+| 60 feed-card maps | 0% | 55 MB | |
+| 60 feed-card maps, scrolled back and forth | 0% | 56 to 60 MB | About 5% CPU while scrolling |
+
+This harness adds about 4 MB of its own over the earlier feed-card cases, so a feed-card map costs roughly 0.1 MB. The longest single frame gap while a screen mounted was 17 to 61 ms in nine of the ten runs. One run mounting all 60 feed-card maps at once stalled for 304 ms; a virtualised list mounts only the visible cards, and that has not been measured.
+
+The on-device tap self-test taps every region's label point on the four bodies at all three levels: 600 of 600 found their own region.
 
 Region ids are public API. Renaming or removing one is a breaking change and needs a major version.
 
@@ -246,7 +287,7 @@ Never report a clean review without having run it. If the review could not run, 
 Every review covers all of these, not only correctness.
 
 - **Correctness:** logic errors, crashes, regressions, broken types or imports. Type-check and tests must pass.
-- **Speed:** nothing slow on the mount path, no work repeated that could be cached, no per-frame allocation of paths, arrays or pictures.
+- **Speed:** nothing slow on the mount path, no work repeated that could be cached, and no avoidable per-frame allocation. The one picture recorded per animating frame is the measured design (see Benchmarks); an idle map must do no per-frame work at all.
 - **Smoothness:** animation and gestures stay on the UI thread, with no React state updates per frame.
 - **Memory and size:** the data budgets above still hold, bodies still load on demand, native objects are created once and reused.
 - **Optimisation claims are measured:** any change made for performance comes with before and after numbers. No unmeasured optimisations.

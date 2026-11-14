@@ -49,7 +49,7 @@ function GlowRegion({ path, a, b, progress, maskBlur }: Pick<RegionProps, 'path'
 
 function Nodes({ scene, a, b, progress, glow }: { scene: Scene; a: number[]; b: number[]; progress: SharedValue<number>; glow: GlowMode }) {
   // only regions that glow at some point get a glow node
-  const glowing = scene.paths.map((_, i) => !scene.inert[i] && (a[i]! > 0.6 || b[i]! > 0.6));
+  const glowing = scene.paths.map((_, i) => !scene.inert[i] && (glowOpacity(a[i]!) > 0 || glowOpacity(b[i]!) > 0));
   const glowNodes = scene.paths.map((path, i) =>
     glowing[i] ? <GlowRegion key={i} path={path} a={a[i]!} b={b[i]!} progress={progress} maskBlur={glow === 'mask'} /> : null,
   );
