@@ -10,6 +10,12 @@ describe('relative path encoding', () => {
     for (const sub of subs) expect(decodeRel(encodeRel(sub))).toEqual(sub);
   });
 
+  it('measures from the start of the sub-path after closing it', () => {
+    const [sub] = parsePath('M10.0 10.0L20.0 10.0L20.0 20.0ZL5.0 12.0Z');
+    expect(encodeRel(sub)).toBe('M10 10h10v10zl-5 2z');
+    expect(decodeRel(encodeRel(sub))).toEqual(sub);
+  });
+
   it('writes the shortest form', () => {
     const [sub] = parsePath('M10.0 10.0L20.5 10.0L20.5 9.5L21.0 9.0L20.0 8.5Z');
     expect(encodeRel(sub)).toBe('M10 10h10.5v-.5l.5-.5-1-.5z');
