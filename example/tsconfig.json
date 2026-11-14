@@ -1,0 +1,11 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "momentum-muscle-map": ["../src/index.ts"],
+      "momentum-muscle-map/core": ["../src/core/index.ts"],
+      "momentum-muscle-map/data/*": ["../src/data/*.ts"]
+    }
+  }
+}

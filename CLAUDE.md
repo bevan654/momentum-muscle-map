@@ -14,7 +14,7 @@ Every region id is snake_case and ends in `_left` or `_right`, meaning the subje
 
 ## Status
 
-The geometry pipeline, the generated data and the core logic exist and are tested. The Skia renderer is not written yet.
+The geometry pipeline, the generated data and the core logic exist and are tested. The example app has a benchmark harness. The Skia renderer is not written yet.
 
 Known gaps:
 
@@ -45,7 +45,15 @@ Known gaps:
 └── .github/workflows/   # CI: type-check, tests, size check, build
 ```
 
-Planned alongside these: `example/` (an Expo app used for manual testing and on-device benchmarks).
+`example/` is an Expo app used for manual testing and benchmarks. It has its own `package.json` and imports the library straight from `../src`.
+
+```
+example/
+├── App.tsx              # Benchmark harness: tap a case, or start one with a launch argument
+├── metro.config.js      # Resolves momentum-muscle-map to ../src
+├── scripts/run-bench.mjs  # Drives every case on a booted iOS simulator and prints the results
+└── src/bench/           # The benchmark cases
+```
 
 ### Commands
 
@@ -108,7 +116,52 @@ These are what the library is built and reviewed against.
 | Smoothness | Colour transitions, glow, zoom and pan run on the UI thread at the display's frame rate, with no React re-render per frame. |
 | Lists | The small feed-card map must be cheap enough to show many times in a scrolling list. |
 
-The rendering targets have no measured baseline yet. The first renderer work must add a benchmark to the example app and record the numbers here.
+### Benchmarks
+
+Measured with the example app as a release build on an iPhone 17 Pro simulator (iOS 26.5, 60 Hz) on an Apple-silicon Mac. A simulator on a fast Mac is much quicker than a phone, so read these as comparisons between approaches and as headroom, not as device numbers. Android has not been measured.
+
+To rerun: `cd example && npx expo run:ios --configuration Release`, then `npm run bench`.
+
+Set-up, male front body:
+
+| Step | Median |
+|---|---|
+| Build the Skia paths for one level | 0.2 to 0.4 ms |
+| Build the outline path | 0.06 ms |
+| Resolve values for a level | 0.05 ms |
+| Hit-test one tap | 0.002 ms |
+
+Cost of drawing one frame at Full detail into a 966 by 2100 pixel surface, with five regions glowing:
+
+| Approach | No glow | Glow as one blurred layer | Glow as a blurred mask per region |
+|---|---|---|---|
+| Draw directly | 0.28 ms | 0.43 ms | 1.15 ms |
+| Record a picture, then draw it | 0.28 ms | 0.47 ms | 0.88 ms |
+| Draw an already recorded picture | 0.22 ms | 0.31 ms | 0.23 ms |
+
+With every region glowing, the layer costs 0.57 ms. Recording a picture on its own costs about 0.04 ms on the JS thread and 0.2 to 0.6 ms on the UI thread during a live animation.
+
+Live animation of every region's colour for six seconds, full screen:
+
+| Approach | Frames slower than 1.5x the median | App memory |
+|---|---|---|
+| One Skia node per region | 0% | 59 MB, 61 MB with glow |
+| One picture re-recorded each frame | 0% | 57 MB, 58 MB with glow |
+
+An idle app with no canvas uses 45 MB.
+
+Feed-card maps in a list:
+
+| Approach | Prepare 20 | Memory for 20 | Memory for 60 |
+|---|---|---|---|
+| A live canvas per card showing a recorded picture | 6 ms | 48 MB | 52 MB |
+| A PNG rendered once, shown as a React Native image | 116 ms | 57 MB | 67 MB |
+
+What the renderer does as a result:
+
+- **One picture, re-recorded on the UI thread only while values are animating.** It is no slower than one node per region, uses less memory, and needs one derived value where the other approach needs one per region.
+- **Glow as a single blurred layer** holding only the regions above the glow threshold. It costs less than half of a blurred mask per region in the typical case and is skipped when nothing glows.
+- **The feed-card map is a small canvas showing a picture recorded once.** Pre-rendering to an image was slower to prepare and used more memory.
 
 Region ids are public API. Renaming or removing one is a breaking change and needs a major version.
 
