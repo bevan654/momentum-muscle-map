@@ -1,6 +1,6 @@
 // On-screen frame pacing while every region's colour animates, drawn two ways:
 // one Skia node per region, or one picture re-recorded on the UI thread.
-import { Blur, Canvas, Group, Paint, Path, Picture, Skia } from '@shopify/react-native-skia';
+import { Blur, BlurMask, Canvas, Group, Paint, Path, Picture, Skia } from '@shopify/react-native-skia';
 import type { SkPath } from '@shopify/react-native-skia';
 import { useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
@@ -42,7 +42,7 @@ function GlowRegion({ path, a, b, progress, maskBlur }: Pick<RegionProps, 'path'
   const opacity = useDerivedValue(() => glowOpacity(a + (b - a) * progress.value));
   return (
     <Path path={path} color={COLORS.accent} opacity={opacity}>
-      {maskBlur ? <Blur blur={GLOW_SIGMA} /> : null}
+      {maskBlur ? <BlurMask blur={GLOW_SIGMA} style="normal" /> : null}
     </Path>
   );
 }
