@@ -59,7 +59,10 @@ function drawCost(body: BodyData, width: number, height: number, frames: number,
     drawScene(c, scene, a, b, t, glow);
     return recorder.finishRecordingAsPicture();
   };
-  const cached = record(0.5);
+  // One recorded picture per animation step, so 'replay' draws the same frames
+  // as the other variants. A single picture from the middle of the blend would
+  // have no glow in it: no value is above the glow threshold there.
+  const cached = Array.from({ length: 60 }, (_, i) => record(i / 59));
   const frame = (i: number) => {
     const t = (i % 60) / 59;
     canvas.clear(background);
@@ -70,7 +73,7 @@ function drawCost(body: BodyData, width: number, height: number, frames: number,
       drawScene(canvas, scene, a, b, t, glow);
       canvas.restore();
     } else if (variant === 'replay') {
-      canvas.drawPicture(cached);
+      canvas.drawPicture(cached[i % 60]!);
     } else {
       canvas.drawPicture(record(t));
     }
@@ -87,6 +90,8 @@ function drawCost(body: BodyData, width: number, height: number, frames: number,
   const tr = now();
   for (let i = 0; i < frames; i++) record((i % 60) / 59);
   const recordOnly = (now() - tr) / frames;
+  for (const picture of cached) picture.dispose();
+  surface.dispose();
   return { msPerFrame: Math.round((total / frames) * 1000) / 1000, recordOnlyMs: Math.round(recordOnly * 1000) / 1000 };
 }
 
