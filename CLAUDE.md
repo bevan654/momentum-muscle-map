@@ -131,43 +131,43 @@ Set-up, male front body:
 | Resolve values for a level | 0.05 ms |
 | Hit-test one tap | 0.002 ms |
 
-Cost of drawing one frame at Full detail into a 966 by 2100 pixel surface. Each frame is one step of a blend between two workouts, so the number of glowing regions changes from frame to frame: between 0 and 16 of the 72, about 10 on average.
+Cost of drawing one frame at Full detail into a 966 by 2100 pixel surface. Each frame is one step of a blend between two workouts, so the number of glowing regions changes from frame to frame: between 0 and 16 of the 72, about 10 on average. Figures are the median of five runs; a single run varies by up to about 0.1 ms.
 
 | Approach | No glow | Glow as one blurred layer | Glow as a blurred mask per region |
 |---|---|---|---|
-| Draw directly | 0.28 ms | 0.43 ms | 1.15 ms |
-| Record a picture, then draw it | 0.28 ms | 0.47 ms | 0.88 ms |
-| Draw an already recorded picture | 0.22 ms | 0.31 ms | 0.23 ms |
+| Draw directly | 0.27 ms | 0.39 ms | 0.92 ms |
+| Record a picture, then draw it | 0.25 ms | 0.41 ms | 0.93 ms |
+| Draw an already recorded picture | 0.21 ms | 0.35 ms | 0.91 ms |
 
-The bottom row's two glow figures are not valid and must be measured again: when they were taken, that case replayed a single picture recorded at the middle of the blend, where nothing glows. All three figures in that row are therefore the same glow-free picture, and their spread (0.22 to 0.31 ms) shows how much one run varies. Treat differences of about 0.1 ms or less anywhere in this table as noise. The harness now replays the same frames the other two rows draw.
-
-With every region glowing, the layer costs 0.57 ms. Recording a picture on its own costs about 0.04 ms on the JS thread and 0.2 to 0.6 ms on the UI thread during a live animation.
+With every region glowing at a constant strength, the layer costs 0.50 ms and the masks cost 0.37 ms, so the layer is not cheaper in every case. Recording a picture on its own costs about 0.04 ms on the JS thread and 0.2 to 0.6 ms on the UI thread during a live animation.
 
 Live animation of every region's colour for six seconds, full screen:
 
-| Approach | Frames slower than 1.5x the median | App memory |
-|---|---|---|
-| One Skia node per region | 0% | 59 MB, 61 MB with glow |
-| One picture re-recorded each frame | 0% | 57 MB, 58 MB with glow |
+| Approach | Frames slower than 1.5x the median | Memory, no glow | Memory, layer glow | Memory, mask glow |
+|---|---|---|---|---|
+| One Skia node per region | 0% | 59 MB | 61 MB | 66 MB |
+| One picture re-recorded each frame | 0% | 57 MB | 59 MB | 63 MB |
 
-Frame times here are the gaps between UI-thread frame callbacks. They show whether the UI thread kept up, not how long the GPU took, and a percentage measured against the median cannot show a rate that is slow on every frame. The node figures with a per-region glow must be measured again: that case blurred each region with an image filter where the picture case used a mask filter, and now uses a mask filter too.
+Every case ran at the simulator's 60 frames a second with a median frame gap of 16.67 ms. Frame times here are the gaps between UI-thread frame callbacks. They show whether the UI thread kept up, not how long the GPU took, and a percentage measured against the median cannot show a rate that is slow on every frame.
 
 An idle app with no canvas uses 45 MB.
 
 Feed-card maps in a list:
 
-| Approach | Prepare 20 | Memory for 20 | Memory for 60 |
-|---|---|---|---|
-| A live canvas per card showing a recorded picture | 6 ms | 48 MB | 52 MB |
-| A PNG rendered once, shown as a React Native image | 116 ms | 57 MB | 67 MB |
+| Approach | Prepare 20 | Mounted and drawn, 20 | Memory for 20 | Memory for 60 |
+|---|---|---|---|---|
+| A live canvas per card showing a recorded picture | 8 ms | 32 ms | 48 MB | 52 MB |
+| A PNG rendered once, shown as a React Native image | 115 ms | 149 ms | 57 MB | 71 MB |
 
-The image figures must be measured again. When they were taken, that case made a new offscreen surface for every PNG and released none of them, and kept the recorded pictures as well, so its memory and its preparation time include work a real implementation would not do. The harness now uses one surface and releases it. Preparation time covers recording and encoding only; the cost of the first draw on screen is not in this table.
+"Mounted and drawn" is the time from first render to the second frame after it; an empty screen takes the same 32 ms. The image approach keeps its PNGs as base64 strings in JS memory, which is part of its cost here.
+
+The harness keeps one offscreen surface per size for the whole run. Freeing offscreen surfaces between cases, by hand or by the garbage collector, intermittently crashed inside Skia's GPU resource cache. The library itself never creates offscreen surfaces.
 
 What the renderer does as a result:
 
-- **One picture, re-recorded on the UI thread only while values are animating.** Neither approach dropped frames in the simulator, so this run does not separate them on speed. The picture used about 2 MB less memory, and it needs one derived value where the other approach needs one per region.
-- **Glow as a single blurred layer** holding only the regions above the glow threshold. It cost less than a blurred mask per region both drawn directly (0.43 ms against 1.15 ms) and re-recorded each frame (0.47 ms against 0.88 ms), and it is skipped when nothing glows.
-- **The feed-card map is a small canvas showing a picture recorded once.** Pre-rendering to an image was slower to prepare and used more memory in the first run; confirm this once the image case has been measured again.
+- **One picture, re-recorded on the UI thread only while values are animating.** Neither approach dropped frames in the simulator, so this run does not separate them on speed. The picture used 2 to 3 MB less memory, and it needs one derived value where the other approach needs one per region.
+- **Glow as a single blurred layer** holding only the regions above the glow threshold. During a blend it cost less than half of a blurred mask per region however it was drawn (about 0.4 ms against 0.9 ms) and used 4 to 5 MB less memory, and it is skipped when nothing glows. With every region glowing steadily the masks were cheaper by about 0.1 ms, which is the less common case.
+- **The feed-card map is a small canvas showing a picture recorded once.** Pre-rendering to an image took about 14 times longer to prepare and used 9 MB more memory for 20 cards.
 
 Region ids are public API. Renaming or removing one is a breaking change and needs a major version.
 

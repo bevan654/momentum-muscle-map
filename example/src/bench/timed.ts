@@ -1,6 +1,7 @@
 // Benchmarks that run to completion on the JS thread: data and path set-up
 // costs, and the cost of drawing one frame each way into an offscreen surface.
 import { Skia } from '@shopify/react-native-skia';
+import type { SkSurface } from '@shopify/react-native-skia';
 import { candidatesAt, getBodyModel, resolveValues, unitPath } from 'momentum-muscle-map/core';
 import type { BodyData } from 'momentum-muscle-map/core';
 import { COLORS, EVERYTHING, LEGS, PUSH, buildPaths, buildScene, drawScene, fit, summarise, valuesFor } from './scene';
@@ -41,9 +42,9 @@ export function setupCosts(body: BodyData) {
 }
 
 /** Milliseconds to draw one frame into an offscreen surface of the given pixel size. */
-function drawCost(body: BodyData, width: number, height: number, frames: number, variant: string, glow: GlowMode, worstCase: boolean) {
-  const surface = Skia.Surface.MakeOffscreen(width, height);
-  if (!surface) return { error: 'no offscreen surface' };
+function drawCost(body: BodyData, surface: SkSurface, frames: number, variant: string, glow: GlowMode, worstCase: boolean) {
+  const width = surface.width();
+  const height = surface.height();
   const canvas = surface.getCanvas();
   const scene = buildScene(body, 'parts');
   const a = valuesFor(body, 'parts', worstCase ? EVERYTHING : PUSH);
@@ -90,23 +91,32 @@ function drawCost(body: BodyData, width: number, height: number, frames: number,
   const tr = now();
   for (let i = 0; i < frames; i++) record((i % 60) / 59);
   const recordOnly = (now() - tr) / frames;
-  for (const picture of cached) picture.dispose();
-  surface.dispose();
   return { msPerFrame: Math.round((total / frames) * 1000) / 1000, recordOnlyMs: Math.round(recordOnly * 1000) / 1000 };
 }
+
+const keptSurfaces: SkSurface[] = [];
 
 export function drawCosts(body: BodyData) {
   const out: Record<string, unknown> = {};
   // a body shown 700pt tall on a 3x screen, and a 120pt feed-card map
   const sizes = { full: [966, 2100], mini: [165, 360] } as const;
   for (const [sizeName, [w, h]] of Object.entries(sizes)) {
+    // One surface per size, shared by every case and kept for the life of the
+    // app. Freeing offscreen surfaces between cases, by hand or by the garbage
+    // collector, intermittently trips an assertion in Skia's GPU resource cache.
+    const surface = Skia.Surface.MakeOffscreen(w, h);
+    if (!surface) {
+      out[sizeName] = { error: 'no offscreen surface' };
+      continue;
+    }
+    keptSurfaces.push(surface);
     for (const glow of ['none', 'mask', 'layer'] as const) {
       for (const variant of ['direct', 'replay', 'rerecord']) {
-        out[`${sizeName}/${glow}/${variant}`] = drawCost(body, w, h, 120, variant, glow, false);
+        out[`${sizeName}/${glow}/${variant}`] = drawCost(body, surface, 120, variant, glow, false);
       }
     }
     for (const glow of ['mask', 'layer'] as const) {
-      out[`${sizeName}/${glow}/direct/everythingLit`] = drawCost(body, w, h, 120, 'direct', glow, true);
+      out[`${sizeName}/${glow}/direct/everythingLit`] = drawCost(body, surface, 120, 'direct', glow, true);
     }
   }
   return out;
