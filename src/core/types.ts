@@ -46,7 +46,7 @@ export interface RegionInfo {
   key: string;
   side: Side;
   level: Level;
-  /** The muscle this unit is or belongs to. Absent for a group. */
+  /** The muscle this unit is or belongs to. Absent for a muscle group; a non-muscle unit keeps it at every level. */
   muscle?: string;
   group: string;
   /** False for tendons, fascia and the kneecap, which never take a value. */

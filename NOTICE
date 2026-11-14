@@ -2,7 +2,13 @@ momentum-muscle-map
 
 The body outline and muscle shapes in src/data are derived from
 @musclemap/assets 1.1.0 (https://www.npmjs.com/package/@musclemap/assets),
-used under the MIT License:
+used under the MIT License. That package's licence file is reproduced in full
+below. Its closing "Scope of this license" section is part of the original
+text: "this repository" there means the MuscleMap repository, not this one,
+and the MIT License applies to the artwork taken from that package, not to
+the rest of momentum-muscle-map.
+
+---
 
 MIT License
 
