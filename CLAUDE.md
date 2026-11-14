@@ -18,6 +18,7 @@ Version 0.1: the data, the core logic and the Skia renderer exist. The renderer 
 
 Known gaps:
 
+- **Cost of mounting a map on a phone is not measured.** Each time a map mounts or its size, colours or glow setting change, Reanimated inspects everything the drawing worklet captured, including every Skia path of the level. The simulator shows no problem, but this has not been timed on a real phone.
 - **Android is not benchmarked.** No Android device or emulator has been used yet. Rendering numbers so far come from the iPhone simulator only, so run the example app's benchmark on a real Android phone before relying on them.
 
 ## How it is structured
@@ -210,15 +211,15 @@ What the renderer does as a result:
 - **Glow as a single blurred layer** holding only the regions above the glow threshold, skipped when nothing glows. This is a trade, not a clear win: the layer costs about 0.13 ms a frame more than a mask per region once warm. In return the first frame of a newly glowing set of regions costs about the same as a frame with no glow, where masks added 9 ms for 16 regions and about 25 ms for 70, on a Mac far faster than a phone. It also used 4 to 5 MB less memory. A steady small cost was chosen over a hitch whenever a different set of muscles lights up.
 - **The feed-card map is a small canvas showing a picture recorded once.** Pre-rendering to an image took about 14 times longer to prepare and used 9 MB more memory for 20 cards.
 
-The library's own components, measured the same way (two runs each):
+The library's own components, measured the same way (four runs each). CPU is not recorded by the harness; it was read by hand with `top` on the app's process while each case ran.
 
 | Case | Frames slower than 1.5x the median | Memory | Notes |
 |---|---|---|---|
 | One full map at Full detail, idle | 0% | 57 MB | About 1% CPU against 0% for an empty screen. The empty screen has no frame counter and this case's harness has one, so the map's share was not measured separately |
 | The same map with its values changing every 400 ms | 0% | 59 MB | Glow on |
 | 20 feed-card maps | 0% | 53 MB | |
-| 60 feed-card maps | 0% | 55 MB | |
-| 60 feed-card maps, scrolled back and forth | 0% | 56 to 60 MB | About 5% CPU while scrolling |
+| 60 feed-card maps | 0% | 55 to 56 MB | |
+| 60 feed-card maps, scrolled back and forth | 0% | 55 to 60 MB | About 5% CPU while scrolling |
 
 This harness adds about 4 MB of its own over the earlier feed-card cases, so a feed-card map costs roughly 0.1 MB. Feed-card maps with the same body and colours share one set of paints; that made no measurable difference to memory (53 and 55 to 56 MB before and after) and is kept because it creates fewer native objects.
 
