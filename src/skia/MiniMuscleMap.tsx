@@ -42,7 +42,7 @@ export const MiniMuscleMap = memo(function MiniMuscleMap({ body, values, colors,
   }, [body, values, rest, accent, inert, bodyColor, width, height]);
 
   return (
-    <Canvas style={[{ width, height }, style]} accessibilityRole="image" accessibilityLabel={accessibilityLabel}>
+    <Canvas style={[{ width, height }, style]} accessible={accessibilityLabel != null} accessibilityRole="image" accessibilityLabel={accessibilityLabel}>
       <Picture picture={picture} />
     </Canvas>
   );

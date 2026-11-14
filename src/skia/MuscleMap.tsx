@@ -156,7 +156,7 @@ export const MuscleMap = memo(function MuscleMap(props: MuscleMapProps) {
   const map = size && size.width > 0 && size.height > 0 ? <Map key={getBodyScene(body).id} {...props} size={size} /> : null;
   if (!onRegionPress) {
     return (
-      <View style={style} onLayout={onLayout} accessibilityRole="image" accessibilityLabel={accessibilityLabel}>
+      <View style={style} onLayout={onLayout} accessible={accessibilityLabel != null} accessibilityRole="image" accessibilityLabel={accessibilityLabel}>
         {map}
       </View>
     );
