@@ -48,7 +48,7 @@ interface Shown {
 
 const EASING = Easing.out(Easing.cubic);
 
-function Map({ body, values, level = 'muscles', colors, glow = true, animationDuration = 300, padding = 0, size }: MuscleMapProps & { size: Size }) {
+function MapCanvas({ body, values, level = 'muscles', colors, glow = true, animationDuration = 300, padding = 0, size }: MuscleMapProps & { size: Size }) {
   const scene = getBodyScene(body);
   ensureLevel(body, scene, level);
   const { rest, accent, inert, body: bodyColor } = colors;
@@ -153,7 +153,7 @@ export const MuscleMap = memo(function MuscleMap(props: MuscleMapProps) {
   );
 
   // Keyed by body, so switching body starts clean instead of blending two different bodies.
-  const map = size && size.width > 0 && size.height > 0 ? <Map key={getBodyScene(body).id} {...props} size={size} /> : null;
+  const map = size && size.width > 0 && size.height > 0 ? <MapCanvas key={getBodyScene(body).id} {...props} size={size} /> : null;
   if (!onRegionPress) {
     return (
       <View style={style} onLayout={onLayout} accessible={accessibilityLabel != null} accessibilityRole="image" accessibilityLabel={accessibilityLabel}>
