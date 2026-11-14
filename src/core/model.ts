@@ -136,17 +136,22 @@ function lookup(values: MuscleValues, key: string, side: Side): number | undefin
  *
  * Non-muscle units are always 0.
  *
- * Pass `out` to reuse an array between calls.
+ * Pass `out` to reuse an array between calls. `missing` is what a muscle unit
+ * gets when no value was given for it or anything in it: 0 by default, or a
+ * negative number to tell "no value" apart from a value of 0.
  */
-export function resolveValues(model: BodyModel, level: Level, values: MuscleValues, out?: number[]): number[] {
+export function resolveValues(model: BodyModel, level: Level, values: MuscleValues, out?: number[], missing = 0): number[] {
   const n = model.body[level].length;
   const result = out ?? new Array<number>(n);
   result.length = n;
-  result.fill(0);
+  result.fill(missing > 0 ? 0 : missing);
   const { parts } = model;
   for (let i = 0; i < parts.length; i++) {
     const p = parts[i]!;
-    if (!p.isMuscle) continue;
+    if (!p.isMuscle) {
+      result[level === 'parts' ? i : level === 'muscles' ? p.muscleUnit : p.groupUnit] = 0;
+      continue;
+    }
     let v = lookup(values, p.key, p.side);
     let scaleToMuscle = 1;
     let scaleToGroup = 1;

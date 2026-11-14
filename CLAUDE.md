@@ -129,7 +129,8 @@ const values = { chest: 1, deltoid_anterior: 0.85, triceps_brachii_left: 0.4 };
 
 - **Values** are keyed by a group, muscle or part, with or without `_left` / `_right`. The most specific key wins. Coarser levels show the strongest of their parts, weighted by area. Values are clamped to 0..1 and non-muscle regions never light up.
 - **Colours** all come from the app, so the library has no theme of its own.
-- **Changes to `values`** fade over `animationDuration` (300 ms by default) on the UI thread. Changing `level` or `body` switches at once, because the regions are different.
+- **A colour scale** replaces the `rest` to `accent` ramp when `colors.scale` is set to two or more colours, for example `['#22C55E', '#F59E0B', '#EF4444']` for a recovery map. The colours sit at even steps from 0 to 1 and a value is blended in a straight line between its two neighbours. A muscle with a value of 0 gets the first colour; a muscle with no value at any level stays `rest`. Regions above 0.6 glow in their own colour. `accent` is then unused, and transparency in scale colours is ignored. Not supported: uneven stop positions, a colour per region, see-through regions.
+- **Changes to `values`** fade from the colours on screen to the new ones over `animationDuration` (300 ms by default) on the UI thread. Changing `level` or `body` switches at once, because the regions are different.
 - **Keep `values` and `colors` stable between renders** (`useMemo` or a constant). A new object each render makes the map resolve and redraw each render.
 - **Space around the body** comes from the `padding` prop. Padding or borders in `style` are not supported: they offset the drawing and the tap positions.
 - **`MiniMuscleMap`** is drawn at group level with no glow, animation or touch handling, and takes a fixed `width` and `height` so a list can lay it out without measuring.

@@ -3,9 +3,9 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import type { GestureResponderEvent, LayoutChangeEvent, StyleProp, ViewStyle } from 'react-native';
 import { Easing, useAnimatedReaction, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
-import { describeUnit, fitBody, getBodyModel, resolveValues } from '../core';
+import { describeUnit, fitBody, getBodyModel, regionLooks, resolveValues } from '../core';
 import type { BodyData, Level, MuscleValues, RegionInfo } from '../core';
-import { createBrush, drawBody } from './draw';
+import { createBrush, drawBody, scaleKey } from './draw';
 import type { MuscleMapColors } from './draw';
 import { hitTest } from './hitTest';
 import { LEVELS, ensureLevel, getBodyScene } from './scene';
@@ -43,8 +43,12 @@ interface Size {
 interface Shown {
   /** Index into `LEVELS`. */
   level: number;
+  /** One per unit; `NO_VALUE` where nothing was given. */
   values: number[];
 }
+
+/** Stands for "no value given", which a colour scale draws differently from 0. */
+const NO_VALUE = -1;
 
 const EASING = Easing.out(Easing.cubic);
 
@@ -52,23 +56,26 @@ function MapCanvas({ body, values, level = 'muscles', colors, glow = true, anima
   const scene = getBodyScene(body);
   ensureLevel(body, scene, level);
   const { rest, accent, inert, body: bodyColor } = colors;
+  const stops = scaleKey(colors.scale);
   const brush = useMemo(
-    () => createBrush(scene.outline, { rest, accent, inert, body: bodyColor }),
-    [scene, rest, accent, inert, bodyColor],
+    () => createBrush(scene.outline, { rest, accent, inert, body: bodyColor, scale: stops ? stops.split('|') : undefined }),
+    [scene, rest, accent, inert, bodyColor, stops],
   );
   // A fresh array whenever a level is first built, so the worklet below picks it up.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const levels = useMemo(() => [...scene.levels], [scene, scene.version]);
   const resolved = useMemo<Shown>(
-    () => ({ level: LEVELS.indexOf(level), values: resolveValues(getBodyModel(body), level, values) }),
+    () => ({ level: LEVELS.indexOf(level), values: resolveValues(getBodyModel(body), level, values, undefined, NO_VALUE) }),
     [body, level, values],
   );
 
   // `target` is what the props ask for. `shown` and `from` are what is being
-  // drawn: `from` blends into `shown.values` as `progress` goes from 0 to 1.
+  // drawn: `from` is the look of every region when the last change began (see
+  // `regionLooks`), and it blends into the look of `shown.values` as
+  // `progress` goes from 0 to 1. Empty means there is nothing to blend from.
   const target = useSharedValue(resolved);
   const shown = useSharedValue(resolved);
-  const from = useSharedValue(resolved.values);
+  const from = useSharedValue<number[]>([]);
   const progress = useSharedValue(1);
 
   useEffect(() => {
@@ -80,22 +87,21 @@ function MapCanvas({ body, values, level = 'muscles', colors, glow = true, anima
     (next, previous) => {
       if (previous === null || next === previous) return;
       const current = shown.value;
-      if (animationDuration > 0 && current.level === next.level && current.values.length === next.values.length) {
+      const paths = levels[current.level];
+      if (paths && animationDuration > 0 && current.level === next.level && current.values.length === next.values.length) {
         // Start from whatever is on screen now, so a change mid-fade does not jump.
-        const start = from.value;
-        const p = progress.value;
-        from.value = current.values.map((v, i) => start[i]! + (v - start[i]!) * p);
+        from.value = regionLooks(brush, paths.inert, from.value, current.values, progress.value);
         shown.value = next;
         progress.value = 0;
         progress.value = withTiming(1, { duration: animationDuration, easing: EASING });
       } else {
         // Units differ between levels, so there is nothing to blend.
-        from.value = next.values;
+        from.value = [];
         shown.value = next;
         progress.value = 1;
       }
     },
-    [animationDuration],
+    [animationDuration, brush, levels],
   );
 
   const layout = fitBody(body, size.width, size.height, padding);
@@ -112,7 +118,7 @@ function MapCanvas({ body, values, level = 'muscles', colors, glow = true, anima
     if (paths && scale > 0) {
       canvas.translate(tx, ty);
       canvas.scale(scale, scale);
-      drawBody(canvas, brush, paths, from.value, to, progress.value, glow);
+      drawBody(canvas, brush, paths, regionLooks(brush, paths.inert, from.value, to, progress.value), glow);
     }
     return recorder.finishRecordingAsPicture();
   });
