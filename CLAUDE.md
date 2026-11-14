@@ -129,6 +129,7 @@ const values = { chest: 1, deltoid_anterior: 0.85, triceps_brachii_left: 0.4 };
 - **Colours** all come from the app, so the library has no theme of its own.
 - **Changes to `values`** fade over `animationDuration` (300 ms by default) on the UI thread. Changing `level` or `body` switches at once, because the regions are different.
 - **Keep `values` and `colors` stable between renders** (`useMemo` or a constant). A new object each render makes the map resolve and redraw each render.
+- **Space around the body** comes from the `padding` prop. Padding or borders in `style` are not supported: they offset the drawing and the tap positions.
 - **`MiniMuscleMap`** is drawn at group level with no glow, animation or touch handling, and takes a fixed `width` and `height` so a list can lay it out without measuring.
 
 ## Targets
@@ -137,7 +138,7 @@ These are what the library is built and reviewed against.
 
 | Target | Budget |
 |---|---|
-| Runtime dependencies | None. React, React Native, Skia, Reanimated and Gesture Handler are peer dependencies. |
+| Runtime dependencies | None. React, React Native, Skia and Reanimated are peer dependencies. |
 | Native code | None, so the library can ship in an over-the-air update. |
 | Data for one body, as Hermes bytecode | 80 KB or less (currently 62 to 72 KB) |
 | Data for all four bodies, as Hermes bytecode | 300 KB or less (currently 260 KB) |
@@ -219,7 +220,9 @@ The library's own components, measured the same way (two runs each):
 | 60 feed-card maps | 0% | 55 MB | |
 | 60 feed-card maps, scrolled back and forth | 0% | 56 to 60 MB | About 5% CPU while scrolling |
 
-This harness adds about 4 MB of its own over the earlier feed-card cases, so a feed-card map costs roughly 0.1 MB. The longest single frame gap while a screen mounted was 17 to 61 ms in nine of the ten runs. One run mounting all 60 feed-card maps at once stalled for 304 ms; a virtualised list mounts only the visible cards, and that has not been measured.
+This harness adds about 4 MB of its own over the earlier feed-card cases, so a feed-card map costs roughly 0.1 MB. Feed-card maps with the same body and colours share one set of paints; that made no measurable difference to memory (53 and 55 to 56 MB before and after) and is kept because it creates fewer native objects.
+
+The longest single frame gap while a screen mounted varied widely between runs of the same case, from 17 ms to 304 ms across twenty runs, with five of the twenty over 60 ms and no pattern by case. So mounting can drop frames, and how much is not pinned down. A virtualised list, which mounts only the visible cards, has not been measured.
 
 The on-device tap self-test taps every region's label point on the four bodies at all three levels: 600 of 600 found their own region.
 
