@@ -1,6 +1,6 @@
 import { Skia, TileMode } from '@shopify/react-native-skia';
 import type { SkCanvas, SkPaint, SkPath } from '@shopify/react-native-skia';
-import { glowOpacity, intensityMix } from '../core';
+import type { Palette } from '../core';
 import type { LevelPaths } from './scene';
 
 /** Glow blur radius in body units. */
@@ -9,8 +9,15 @@ const GLOW_SIGMA = 11;
 export interface MuscleMapColors {
   /** A muscle at intensity 0. */
   rest: string;
-  /** A muscle at intensity 1, and the glow. */
+  /** A muscle at intensity 1, and the glow. Not used when `scale` is set. */
   accent: string;
+  /**
+   * Two or more colours spread evenly over 0 to 1, for example green, orange,
+   * red. When set, a muscle with a value takes its colour from here (0 is the
+   * first colour), a muscle with no value stays `rest`, and the glow takes the
+   * muscle's own colour. Transparency in these colours is ignored.
+   */
+  scale?: readonly string[];
   /** Tendons, fascia and the kneecap. */
   inert: string;
   /** The silhouette behind the muscles. */
@@ -18,10 +25,8 @@ export interface MuscleMapColors {
 }
 
 /** Everything the drawing worklet needs besides the values. */
-export interface Brush {
+export interface Brush extends Palette {
   outline: SkPath;
-  rest: Float32Array;
-  accent: Float32Array;
   bodyPaint: SkPaint;
   inertPaint: SkPaint;
   fillPaint: SkPaint;
@@ -39,16 +44,28 @@ function fill(color: string): SkPaint {
 export function createBrush(outline: SkPath, colors: MuscleMapColors): Brush {
   const glowLayerPaint = Skia.Paint();
   glowLayerPaint.setImageFilter(Skia.ImageFilter.MakeBlur(GLOW_SIGMA, GLOW_SIGMA, TileMode.Decal, null));
+  const stops = colors.scale && colors.scale.length > 1 ? colors.scale : null;
+  let scale: Float32Array | null = null;
+  if (stops) {
+    scale = new Float32Array(stops.length * 3);
+    stops.forEach((stop, i) => scale!.set(Skia.Color(stop).subarray(0, 3), i * 3));
+  }
   return {
     outline,
     rest: Skia.Color(colors.rest),
     accent: Skia.Color(colors.accent),
+    scale,
     bodyPaint: fill(colors.body),
     inertPaint: fill(colors.inert),
     fillPaint: fill(colors.rest),
     glowPaint: fill(colors.accent),
     glowLayerPaint,
   };
+}
+
+/** A scale as one string, so it can be compared by its colours and not by the array it came in. */
+export function scaleKey(scale: readonly string[] | undefined): string {
+  return scale ? scale.join('|') : '';
 }
 
 const sharedBrushes = new WeakMap<SkPath, Map<string, Brush>>();
@@ -64,7 +81,7 @@ export function getSharedBrush(outline: SkPath, colors: MuscleMapColors): Brush 
     byColors = new Map();
     sharedBrushes.set(outline, byColors);
   }
-  const key = `${colors.rest}|${colors.accent}|${colors.inert}|${colors.body}`;
+  const key = `${colors.rest}|${colors.accent}|${colors.inert}|${colors.body}|${scaleKey(colors.scale)}`;
   let brush = byColors.get(key);
   if (!brush) {
     brush = createBrush(outline, colors);
@@ -74,49 +91,54 @@ export function getSharedBrush(outline: SkPath, colors: MuscleMapColors): Brush 
 }
 
 /**
- * Draws the silhouette and one level of regions in body coordinates.
- *
- * Each region's intensity is `from[i]` blended towards `to[i]` by `t`. If the
- * value lists do not match the level (for example for one frame while the
- * level is changing) the regions are drawn at rest.
+ * Draws the silhouette and one level of regions in body coordinates. `looks`
+ * is the colour and glow of each region, from `regionLooks`.
  */
-export function drawBody(canvas: SkCanvas, brush: Brush, level: LevelPaths, from: number[], to: number[], t: number, glow: boolean) {
+export function drawBody(canvas: SkCanvas, brush: Brush, level: LevelPaths, looks: number[], glow: boolean) {
   'worklet';
   const { paths, inert } = level;
   const n = paths.length;
-  const usable = to.length === n;
-  const blend = usable && from.length === n && t < 1;
+  const { fillPaint, glowPaint } = brush;
+  const color = new Float32Array(4);
   canvas.drawPath(brush.outline, brush.bodyPaint);
 
-  if (glow && usable) {
+  if (glow) {
     // All glowing regions share one blurred layer, opened only if something glows.
+    // Without a scale the glow is the accent colour; with one it is the region's own.
+    const own = brush.scale !== null;
     let open = false;
     for (let i = 0; i < n; i++) {
-      if (inert[i]) continue;
-      const opacity = glowOpacity(blend ? from[i]! + (to[i]! - from[i]!) * t : to[i]!);
-      if (opacity <= 0) continue;
+      const o = i * 4;
+      const opacity = looks[o + 3]!;
+      if (inert[i] || !(opacity > 0)) continue;
       if (!open) {
         canvas.saveLayer(brush.glowLayerPaint);
         open = true;
       }
-      brush.glowPaint.setAlphaf(opacity);
-      canvas.drawPath(paths[i]!, brush.glowPaint);
+      if (own) {
+        color[0] = looks[o]!;
+        color[1] = looks[o + 1]!;
+        color[2] = looks[o + 2]!;
+        color[3] = opacity;
+        glowPaint.setColor(color);
+      } else {
+        glowPaint.setAlphaf(opacity);
+      }
+      canvas.drawPath(paths[i]!, glowPaint);
     }
     if (open) canvas.restore();
   }
 
-  const { rest, accent, fillPaint } = brush;
-  const color = new Float32Array(4);
   color[3] = 1;
   for (let i = 0; i < n; i++) {
     if (inert[i]) {
       canvas.drawPath(paths[i]!, brush.inertPaint);
       continue;
     }
-    const f = usable ? intensityMix(blend ? from[i]! + (to[i]! - from[i]!) * t : to[i]!) : 0;
-    color[0] = rest[0]! + (accent[0]! - rest[0]!) * f;
-    color[1] = rest[1]! + (accent[1]! - rest[1]!) * f;
-    color[2] = rest[2]! + (accent[2]! - rest[2]!) * f;
+    const o = i * 4;
+    color[0] = looks[o]!;
+    color[1] = looks[o + 1]!;
+    color[2] = looks[o + 2]!;
     fillPaint.setColor(color);
     canvas.drawPath(paths[i]!, fillPaint);
   }

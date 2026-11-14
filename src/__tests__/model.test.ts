@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MUSCLE_WEIGHTS, PARTS, candidatesAt, describeUnit, getBodyModel, glowOpacity, intensityMix, resolveValues, splitId } from '../core';
+import { MUSCLE_WEIGHTS, PARTS, candidatesAt, describeUnit, getBodyModel, glowOpacity, intensityMix, regionLooks, resolveValues, scaleColor, splitId } from '../core';
 import type { Level, MuscleValues } from '../core';
 import maleBack from '../data/male-back';
 import maleFront from '../data/male-front';
@@ -148,5 +148,99 @@ describe('colour curves', () => {
     expect(glowOpacity(1)).toBeCloseTo(0.9, 10);
     expect(glowOpacity(2)).toBeCloseTo(0.9, 10);
     expect(glowOpacity(0.8)).toBeGreaterThan(0);
+  });
+});
+
+describe('resolveValues with a missing marker', () => {
+  it('marks muscles without a value and keeps an explicit 0', () => {
+    const values = { chest: 0, biceps_brachii_left: 0.4 };
+    const out = (level: Level, id: string) => resolveValues(front, level, values, undefined, -1)[maleFront[level].findIndex((u) => u.id === id)]!;
+    for (const level of ['groups', 'muscles', 'parts'] as const) {
+      expect(out(level, level === 'groups' ? 'chest_left' : level === 'muscles' ? 'pectoralis_major_left' : 'pectoralis_major_sternal_left')).toBe(0);
+      expect(out(level, level === 'groups' ? 'quads_left' : level === 'muscles' ? 'rectus_femoris_left' : maleFront.parts.find((u) => PARTS[splitId(u.id).key]![0] === 'rectus_femoris')!.id)).toBe(-1);
+    }
+    expect(out('muscles', 'biceps_brachii_left')).toBe(0.4);
+    expect(out('muscles', 'biceps_brachii_right')).toBe(-1);
+  });
+
+  it('keeps non-muscle units at 0 at every level', () => {
+    for (const level of ['groups', 'muscles', 'parts'] as const) {
+      const out = resolveValues(front, level, {}, undefined, -1);
+      maleFront[level].forEach((_, i) => {
+        expect(out[i]).toBe(describeUnit(front, level, i)!.isMuscle ? -1 : 0);
+      });
+    }
+  });
+
+  it('rolls a part value up over missing siblings', () => {
+    const part = maleFront.parts.find((u) => PARTS[splitId(u.id).key]![1] === 'chest')!;
+    const key = splitId(part.id).key;
+    const out = resolveValues(front, 'groups', { [key]: 0 }, undefined, -1);
+    expect(out[maleFront.groups.findIndex((u) => u.id === `chest_${splitId(part.id).side}`)]).toBe(0);
+  });
+});
+
+describe('scaleColor', () => {
+  const stops = [0, 1, 0, 1, 0.5, 0, 1, 0, 0]; // green, orange, red
+  const at = (v: number) => {
+    const out: number[] = [];
+    scaleColor(stops, v, out, 0);
+    return out;
+  };
+  it('gives the stops at their positions and blends between neighbours', () => {
+    expect(at(0)).toEqual([0, 1, 0]);
+    expect(at(0.5)).toEqual([1, 0.5, 0]);
+    expect(at(1)).toEqual([1, 0, 0]);
+    expect(at(0.25)).toEqual([0.5, 0.75, 0]);
+    expect(at(0.75)).toEqual([1, 0.25, 0]);
+  });
+  it('clamps values outside 0..1 and handles two stops', () => {
+    expect(at(-3)).toEqual([0, 1, 0]);
+    expect(at(7)).toEqual([1, 0, 0]);
+    const out: number[] = [];
+    scaleColor([0, 0, 0, 1, 1, 1], 0.5, out, 0);
+    expect(out).toEqual([0.5, 0.5, 0.5]);
+  });
+});
+
+describe('regionLooks', () => {
+  const rest = [0.2, 0.2, 0.2];
+  const accent = [1, 0.4, 0.2];
+  const scale = [0, 1, 0, 1, 0, 0];
+  const skip = [false, false, true];
+
+  it('runs from rest to accent without a scale, as intensityMix says', () => {
+    const looks = regionLooks({ rest, accent, scale: null }, skip, [], [0, 1, 0], 1);
+    expect(looks).toHaveLength(12);
+    expect(looks.slice(0, 4)).toEqual([0.2, 0.2, 0.2, 0]);
+    expect(looks.slice(4, 7)).toEqual([1, 0.4, 0.2]);
+    expect(looks[7]).toBeCloseTo(0.9);
+    expect(looks.slice(8)).toEqual([0, 0, 0, 0]);
+    const half = regionLooks({ rest, accent, scale: null }, skip, [], [0.5, -1, 0], 1);
+    expect(half[0]).toBeCloseTo(0.2 + 0.8 * intensityMix(0.5));
+    expect(half.slice(4, 8)).toEqual([0.2, 0.2, 0.2, 0]);
+  });
+
+  it('uses the scale for a value and rest for no value', () => {
+    const looks = regionLooks({ rest, accent, scale }, skip, [], [0, -1, 0], 1);
+    expect(looks.slice(0, 4)).toEqual([0, 1, 0, 0]);
+    expect(looks.slice(4, 8)).toEqual([0.2, 0.2, 0.2, 0]);
+  });
+
+  it('blends from an earlier look, glow included', () => {
+    const palette = { rest, accent, scale };
+    const before = regionLooks(palette, skip, [], [-1, 1, 0], 1);
+    const mid = regionLooks(palette, skip, before, [1, 0, 0], 0.5);
+    expect(mid[0]).toBeCloseTo(0.6);
+    expect(mid[1]).toBeCloseTo(0.1);
+    expect(mid[3]).toBeCloseTo(0.45);
+    expect(mid[7]).toBeCloseTo(0.45);
+    expect(regionLooks(palette, skip, before, [1, 0, 0], 1).slice(0, 3)).toEqual([1, 0, 0]);
+  });
+
+  it('draws everything at rest when the values do not match the level', () => {
+    const looks = regionLooks({ rest, accent, scale }, skip, [], [1], 1);
+    expect(looks.slice(0, 4)).toEqual([0.2, 0.2, 0.2, 0]);
+    expect(looks.slice(4, 8)).toEqual([0.2, 0.2, 0.2, 0]);
   });
 });

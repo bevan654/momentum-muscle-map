@@ -8,6 +8,12 @@ import { Demo } from './src/Demo';
 // opens the benchmarks and runs that case; see src/bench/BenchScreen.tsx.
 const launchCase = Platform.OS === 'ios' ? Settings.get('benchCase') : undefined;
 const initialCase = typeof launchCase === 'string' && launchCase ? launchCase : undefined;
+// `-demoPreset Recovery -demoPalette scale -demoLevel groups` open the demo in that state.
+const launchText = (key: string) => {
+  const value = Platform.OS === 'ios' ? Settings.get(key) : undefined;
+  return typeof value === 'string' && value ? value : undefined;
+};
+const demoLevel = launchText('demoLevel');
 
 export default function App() {
   const [screen, setScreen] = useState<'demo' | 'bench'>(initialCase ? 'bench' : 'demo');
@@ -21,7 +27,11 @@ export default function App() {
           </Pressable>
         ))}
       </View>
-      {screen === 'demo' ? <Demo /> : <BenchScreen initialCase={initialCase} />}
+      {screen === 'demo' ? <Demo
+          initialPreset={launchText('demoPreset')}
+          initialPalette={launchText('demoPalette') === 'scale' ? 'scale' : 'accent'}
+          initialLevel={demoLevel === 'groups' || demoLevel === 'parts' ? demoLevel : 'muscles'}
+        /> : <BenchScreen initialCase={initialCase} />}
     </View>
   );
 }

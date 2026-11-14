@@ -14,7 +14,7 @@ Every region id is snake_case and ends in `_left` or `_right`, meaning the subje
 
 ## Status
 
-Version 0.1: the data, the core logic and the Skia renderer exist. The renderer draws the heatmap with animated transitions and glow at three levels, reports taps, and has a small static map for feed cards. Zoom, pan and the close-up view from the HTML prototype are not built.
+Version 0.2: the data, the core logic and the Skia renderer exist. The renderer draws the heatmap with animated transitions and glow at three levels, in one accent colour or along a colour scale, reports taps, and has a small static map for feed cards. Zoom, pan and the close-up view from the HTML prototype are not built.
 
 Known gaps:
 
@@ -129,7 +129,8 @@ const values = { chest: 1, deltoid_anterior: 0.85, triceps_brachii_left: 0.4 };
 
 - **Values** are keyed by a group, muscle or part, with or without `_left` / `_right`. The most specific key wins. Coarser levels show the strongest of their parts, weighted by area. Values are clamped to 0..1 and non-muscle regions never light up.
 - **Colours** all come from the app, so the library has no theme of its own.
-- **Changes to `values`** fade over `animationDuration` (300 ms by default) on the UI thread. Changing `level` or `body` switches at once, because the regions are different.
+- **A colour scale** replaces the `rest` to `accent` ramp when `colors.scale` is set to two or more colours, for example `['#22C55E', '#F59E0B', '#EF4444']` for a recovery map. The colours sit at even steps from 0 to 1 and a value is blended in a straight line between its two neighbours. A muscle with a value of 0 gets the first colour; a muscle with no value at any level stays `rest`. Regions above 0.6 glow in their own colour. `accent` is then unused, and transparency in scale colours is ignored. Not supported: uneven stop positions, a colour per region, see-through regions.
+- **Changes to `values`** fade from the colours on screen to the new ones over `animationDuration` (300 ms by default) on the UI thread. Changing `level` or `body` switches at once, because the regions are different.
 - **Keep `values` and `colors` stable between renders** (`useMemo` or a constant). A new object each render makes the map resolve and redraw each render.
 - **Space around the body** comes from the `padding` prop. Padding or borders in `style` are not supported: they offset the drawing and the tap positions.
 - **`MiniMuscleMap`** is drawn at group level with no glow, animation or touch handling, and takes a fixed `width` and `height` so a list can lay it out without measuring.
@@ -152,7 +153,7 @@ These are what the library is built and reviewed against.
 
 Measured with the example app as a release build on an iPhone 17 Pro simulator (iOS 26.5, 60 Hz) on an Apple-silicon Mac. A simulator on a fast Mac is much quicker than a phone, so read these as comparisons between approaches and as headroom, not as device numbers. Android has not been measured.
 
-To rerun: `cd example && npx expo run:ios --configuration Release`, then `npm run bench`.
+To rerun: `cd example && npx expo run:ios --configuration Release`, then `npm run bench`. With more than one simulator booted, set `BENCH_DEVICE` to the id of the one to use.
 
 Set-up, male front body:
 
@@ -225,6 +226,8 @@ The library's own components, measured the same way (four runs each). CPU is not
 This harness adds about 4 MB of its own over the earlier feed-card cases, so a feed-card map costs roughly 0.1 MB. Feed-card maps with the same body and colours share one set of paints; that made no measurable difference to memory (53 and 55 to 56 MB before and after) and is kept because it creates fewer native objects.
 
 The longest single frame gap while a screen mounted varied widely between runs of the same case, from 17 ms to 304 ms across twenty runs, with five of the twenty over 60 ms and no pattern by case. So mounting can drop frames, and how much is not pinned down. A virtualised list, which mounts only the visible cards, has not been measured.
+
+Version 0.2 changed what an animating map does each frame: it now works out a colour and glow for every region and blends colours, where 0.1 blended values. Checked on an iPhone 17 simulator (release build, two runs): the animating map with the accent ramp and with a three-colour scale both showed 0% slow frames and the same memory (42 MB each; this simulator reads lower than the one used for the tables above, so compare only within this check). The colour calculation for one frame at full detail took under 0.001 ms in Node, about the same as the calculation it replaced; it was not timed on Hermes.
 
 The on-device tap self-test runs the hit test at every region's label point on the four bodies at all three levels: 600 of 600 found their own region. It calls the hit test directly and sends no real touches, so it does not show that a touch reaches the map.
 

@@ -37,6 +37,7 @@ const CASES = [
   'selftest',
   'renderer-idle-1',
   'renderer-animate-1',
+  'renderer-scale-1',
   'renderer-mini-20',
   'renderer-mini-60',
   'renderer-scroll-60',
