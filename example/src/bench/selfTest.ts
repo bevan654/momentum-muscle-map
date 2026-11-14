@@ -1,6 +1,7 @@
-// Checks tap handling on the device, where the real Skia paths are available:
-// a tap on each region's label point must find a region there, and a tap far
-// from the body must find nothing.
+// Checks the hit test on the device, where the real Skia paths are available:
+// each region's label point must find a region there, and a point far from the
+// body must find nothing. It calls the hit test directly and sends no touches,
+// so it does not show that a real tap reaches the map.
 import { fitBody } from 'momentum-muscle-map';
 import type { BodyData, Level } from 'momentum-muscle-map';
 import femaleBack from 'momentum-muscle-map/data/female-back';
